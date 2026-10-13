@@ -129,7 +129,7 @@ const stRows = new Map(); // car id -> row elements
 const ROW_MOVE_MS = 300;
 function standingsRow() {
   const row = document.createElement("div");
-  row.className = "srow enter";
+  row.className = "srow";
   row.innerHTML =
     '<span class="pos"></span><span class="num"></span><img class="flag" alt="">' +
     '<span class="name"></span><span class="best"></span><span class="gap"></span>';
@@ -146,7 +146,11 @@ function reorderRows(container, ids) {
     const el = stRows.get(id)?.row;
     if (el && el.isConnected) before.set(id, el.getBoundingClientRect().top);
   }
-  for (const id of ids) container.appendChild(stRows.get(id).row);
+  // move only rows that are out of place: re-inserting a node restarts its animations
+  ids.forEach((id, i) => {
+    const el = stRows.get(id).row;
+    if (container.children[i] !== el) container.insertBefore(el, container.children[i] || null);
+  });
   for (const [id, top] of before) {
     const el = stRows.get(id).row;
     const dy = top - el.getBoundingClientRect().top;
@@ -169,6 +173,8 @@ function renderStandings(rows) {
       const el = standingsRow();
       el.row.dataset.id = id;
       stRows.set(id, el);
+      // fade in once, only for a car newly entering the list (not on reorder)
+      el.row.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ROW_MOVE_MS, easing: "ease-out" });
     }
   }
   reorderRows(container, ids);
@@ -230,6 +236,7 @@ function buildDeltaWidgets() {
 
 const PROX_RANGE_S = 2.0; // proximity bar: empty at this gap, full at 0
 const CLOSE_GAP_S = 0.5; // below this gap the cars are together: no catch estimate
+const GAIN_FULL_S_PER_LAP = 0.3; // gain/loss rate for full / minimum intensity
 const HOLD_S_PER_LAP = 0.02; // gap change below this per lap reads as "holding"
 const STATUS_HOLD_MS = 1500; // new status must be stable this long before it shows
 const STATUS_NUM_MS = 1000; // lap count refresh interval
@@ -238,13 +245,20 @@ function renderRival(w, r, arrow) {
   const ahead = arrow === UP;
   if (!r) {
     setText(w.v, "–", ""); setText(w.titleEl, `// ${arrow}`); setText(w.catchEl, "", "");
+    w.v.style.color = "";
     w.fill.style.width = "0";
     return;
   }
-  // car ahead "+", car behind "-"; color = gap moving my way (green) / against me (red)
+  // car ahead "+", car behind "-". Hue is always the global ahead/behind color;
+  // gaining vs losing only changes saturation: full color when gaining, washed out
+  // toward the light text gray when losing
   const sign = ahead ? "+" : "-";
-  const cls = r.closing == null ? "" : (ahead ? r.closing > 0 : r.closing < 0) ? "good" : "bad";
-  setText(w.v, r.laps ? `${sign}${r.laps}L` : `${sign}${r.gap.toFixed(2)}`, cls);
+  const gain = r.closing == null ? 0 : (ahead ? r.closing : -r.closing) / GAIN_FULL_S_PER_LAP;
+  const k = (Math.max(-1, Math.min(1, gain)) + 1) / 2; // 0 = losing fast, 1 = gaining fast
+  setText(w.v, r.laps ? `${sign}${r.laps}L` : `${sign}${r.gap.toFixed(2)}`, "");
+  const base = ahead ? "var(--c-ahead)" : "var(--c-behind)";
+  const tint = `color-mix(in srgb, ${base} ${Math.round(10 + 90 * k)}%, var(--c-fg))`;
+  w.v.style.color = tint;
   setText(w.titleEl, `// ${arrow} #${r.num} ${r.name}`);
 
   // proximity: the closer the car, the fuller the bar
@@ -252,7 +266,8 @@ function renderRival(w, r, arrow) {
   w.fill.style.left = "0";
   w.fill.style.width = `${prox * 100}%`;
   w.fill.style.opacity = "1";
-  w.fill.className = "fill prox " + cls;
+  w.fill.style.background = tint;
+  w.fill.className = "fill prox";
 
   // status line, debounced: a new status must hold STATUS_HOLD_MS before it shows,
   // the lap count refreshes at most every STATUS_NUM_MS

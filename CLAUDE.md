@@ -13,9 +13,10 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
   red/green var: good/bad, ahead/behind, radar-danger, lap-up/down.
 - No pedal/input widget.
 - Arrows ▲/▼ instead of the words "ahead"/"behind" in the UI.
-- ▲/▼ widgets: gap only (no trend number), ahead "+", behind "-", gap text and
-  bar colored green/red by gaining/losing vs one lap ago. (Relative widget still
-  uses iRacing's convention: ahead "-", behind "+".)
+- ▲/▼ widgets: gap + proximity bar + debounced status line ("catching in N laps").
+  Ahead "+", behind "-". Color is ALWAYS the global ahead/behind color; gaining vs
+  losing only changes saturation (full color = gaining, washed to --c-fg gray = losing).
+  Relative widget still uses iRacing's convention: ahead "-", behind "+".
 - Delta bars: color = sign (green good / red bad), intensity = direction
   (bright while |delta| grows, faded while it shrinks).
 - Python is managed by uv only (`uv run`, `uv sync`); never system Python or `python -m venv`.

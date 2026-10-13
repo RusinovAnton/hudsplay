@@ -113,11 +113,6 @@ body.preview {
   padding: 0 0.4em;
   border-left: 2px solid transparent;
 }
-.srow.enter { animation: row-enter 0.3s ease-out; }
-@keyframes row-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 .srow.me {
   background: color-mix(in srgb, var(--c-me) 12%, transparent);
   border-left-color: var(--c-me);
@@ -161,9 +156,8 @@ body.preview {
 .delta .catch.after-flag { opacity: 0.45; }
 /* proximity bar: no centre line, neutral until a trend exists */
 .delta.ahead .bar::after, .delta.behind .bar::after, .delta.closest .bar::after { display: none; }
-.fill.prox { background: var(--c-muted); }
-.fill.prox.good { background: var(--c-good); }
-.fill.prox.bad { background: var(--c-bad); }
+.delta.ahead .fill.prox { background: var(--c-ahead); }
+.delta.behind .fill.prox { background: var(--c-behind); }
 .delta .v.good { color: var(--c-good); }
 .delta .v.bad { color: var(--c-bad); }
 .widget.off { display: none; }
