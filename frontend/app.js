@@ -490,6 +490,8 @@ function renderRadar(r) {
 const PAINT_FULL_S_PER_M = 0.003;
 const mapCache = { version: -1, points: null };
 const mapView = { heading: null };
+const MAP_ROAD_W = 11; // px, base track
+const MAP_PAINT_W = 7; // px, delta paint on top of the road
 const MAP_FOLLOW_DEFAULT_M = 400; // follow mode: metres of track from me to the top edge
 const MAP_FOLLOW_Y = 0.72; // follow mode: my car sits this far down the widget
 const MAP_HEADING_LOOK = 0.004; // lap % either side used to measure my heading
@@ -568,7 +570,7 @@ function drawPaint(ctx, m, at, W, H, follow) {
 }
 
 function strokePaint(o, sm, S, at, visible) {
-    o.lineWidth = 4;
+    o.lineWidth = MAP_PAINT_W;
     o.lineCap = "butt"; // round caps would stack alpha at every joint
     const good = hexRgb(colors["--c-good"]), bad = hexRgb(colors["--c-bad"]), mid = hexRgb(colors["--c-muted"]);
     const colorAt = (k) => {
@@ -676,7 +678,7 @@ function renderMap(m) {
   ctx.closePath();
   ctx.strokeStyle = colors["--c-muted"];
   ctx.globalAlpha = 0.35;
-  ctx.lineWidth = 7;
+  ctx.lineWidth = MAP_ROAD_W;
   ctx.stroke();
   ctx.globalAlpha = 1;
 
@@ -687,37 +689,27 @@ function renderMap(m) {
   const [tx, ty] = at(0.003);
   const nx = -(ty - sy), ny = tx - sx, nl = Math.hypot(nx, ny) || 1;
   ctx.beginPath();
-  ctx.moveTo(sx - (nx / nl) * 7, sy - (ny / nl) * 7);
-  ctx.lineTo(sx + (nx / nl) * 7, sy + (ny / nl) * 7);
+  ctx.moveTo(sx - (nx / nl) * 9, sy - (ny / nl) * 9);
+  ctx.lineTo(sx + (nx / nl) * 9, sy + (ny / nl) * 9);
   ctx.strokeStyle = colors["--c-fg"];
   ctx.lineWidth = 2;
   ctx.stroke();
 
   // cars: others first, me on top
-  const style = { 0: ["--c-radar-car", 3], 2: ["--c-muted", 2.5], 3: ["--c-ahead", 4], 4: ["--c-behind", 4], 1: ["--c-me", 5] };
+  // [color, radius px]; every dot gets a dark border so it stands out on the paint
+  const style = { 0: ["--c-radar-car", 4.5], 2: ["--c-muted", 3.5], 3: ["--c-ahead", 5.5], 4: ["--c-behind", 5.5], 1: ["--c-me", 6.5] };
   const cars = [...(m.cars || [])].sort((a, b) => (a[1] === 1) - (b[1] === 1));
   for (const [pct, kind] of cars) {
     const [x, y] = at(pct);
     if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue;
     const [col, r] = style[kind] || style[0];
-    if (kind === 1 && follow) {
-      // me in follow mode: arrow pointing up (direction of travel)
-      ctx.beginPath();
-      ctx.moveTo(x, y - 7);
-      ctx.lineTo(x + 5, y + 5);
-      ctx.lineTo(x, y + 2);
-      ctx.lineTo(x - 5, y + 5);
-      ctx.closePath();
-      ctx.fillStyle = colors[col];
-      ctx.fill();
-      ctx.strokeStyle = colors["--c-bg"]; ctx.lineWidth = 1.5; ctx.stroke();
-      continue;
-    }
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = colors[col];
     ctx.fill();
-    if (kind === 1) { ctx.strokeStyle = colors["--c-bg"]; ctx.lineWidth = 1.5; ctx.stroke(); }
+    ctx.strokeStyle = colors["--c-bg"];
+    ctx.lineWidth = kind === 1 ? 2 : 1.5;
+    ctx.stroke();
   }
 }
 
