@@ -5,7 +5,7 @@
 //   Ctrl+Shift+Q  quit
 const { app, BrowserWindow, globalShortcut, screen } = require("electron");
 
-const URL = process.env.OVERLAY_URL || "http://127.0.0.1:8765/";
+const URL = process.env.RACEHUD_URL || "http://127.0.0.1:8765/";
 let win;
 let editMode = false;
 
@@ -13,6 +13,7 @@ function createWindow() {
   const { bounds } = screen.getPrimaryDisplay();
   win = new BrowserWindow({
     ...bounds,
+    title: "racehud",
     transparent: true,
     frame: false,
     resizable: false,

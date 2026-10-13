@@ -2,6 +2,7 @@
   "name": "racehud-shell",
   "private": true,
   "version": "0.1.0",
+  "productName": "racehud",
   "main": "main.js",
   "scripts": {
     "start": "electron ."
