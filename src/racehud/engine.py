@@ -114,6 +114,17 @@ def _fmt_name(name: str, fmt: str) -> str:
     return name
 
 
+def _class_color(value) -> str | None:
+    """iRacing CarClassColor (YAML hex like 0xffda59, parsed as int or str) -> '#ffda59'."""
+    if value is None or value == "":
+        return None
+    try:
+        n = value if isinstance(value, int) else int(str(value), 0)
+    except ValueError:
+        return None
+    return f"#{n & 0xFFFFFF:06x}"
+
+
 def _track_length_m(text: str | None) -> float | None:
     if not text:
         return None
@@ -146,6 +157,7 @@ class Engine:
         self.fuel_capacity: float | None = None
         self.est_lap = 100.0
         self.sessions: dict[int, dict] = {}
+        self.multiclass = False
         self.session_num = None
         self.map = TrackMap()
         self._frame = 0
@@ -157,6 +169,7 @@ class Engine:
         self.fuel = FuelCalc()
         self.trends: dict[int, dict[int, float]] = {}
         self.radar_sides: dict[int, str] = {}
+        self.start_pos: int | None = None
         self.paint = DeltaPaint(getattr(self, "track_len", None))
         self.last_now: float | None = None
 
@@ -176,9 +189,12 @@ class Engine:
                 "name": _fmt_name(d.get("UserName", ""), self.cfg.name_format),
                 "num": str(d.get("CarNumber", "")),
                 "cls": d.get("CarClassID"),
+                "clsName": d.get("CarClassShortName") or "",
+                "clsColor": _class_color(d.get("CarClassColor")),
                 # TODO(windows): verify flair field name with `uv run racehud --dump`
                 "cc": to_iso(d.get("FlairName")),
             }
+        self.multiclass = len({d["cls"] for d in self.drivers.values()}) > 1
         wi = info.get("WeekendInfo") or {}
         track_len = _track_length_m(wi.get("TrackLength"))
         if track_len != self.track_len:
@@ -212,6 +228,12 @@ class Engine:
         session, laps_to_go = self._session(t, me)
         standings, ahead, behind, pos, cars = self._standings(t, me, now, session["race"])
         session["pos"], session["cars"] = pos, cars
+        session["multiclass"] = self.multiclass
+        # grid position: first position seen once parade laps / racing start
+        # (irsdk_SessionState 3 = parade laps, 4 = racing)
+        if session["race"] and self.start_pos is None and pos > 0 and t.get("SessionState") in (3, 4):
+            self.start_pos = pos
+        session["startPos"] = self.start_pos
         delta = self._delta(t)
 
         return {
@@ -390,6 +412,7 @@ class Engine:
         pcts = t.get("CarIdxLapDistPct") or []
         bests = t.get("CarIdxBestLapTime") or []
         on_pit = t.get("CarIdxOnPitRoad") or []
+        talking = t.get("RadioTransmitCarIdx", -1)  # -1 = nobody on the radio
 
         def best(idx):
             v = bests[idx] if idx < len(bests) else -1
@@ -435,10 +458,13 @@ class Engine:
                 "cc": d["cc"],
                 "best": _r(b),
                 "bestIsClassBest": b is not None and b == class_best.get(d["cls"]),
+                "cls": d["clsName"],
+                "clsColor": d["clsColor"],
                 "gap": _r(gap),
                 "lapRel": lap_rel,
                 "isMe": idx == me,
                 "inPit": bool(on_pit[idx]) if idx < len(on_pit) else False,
+                "radio": idx == talking,
             }
 
         rows = [row(idx, dp, tr) for _, dp, idx, tr in reversed(ahead)]

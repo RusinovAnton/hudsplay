@@ -17,6 +17,7 @@ PLAYER = 7
 RADAR_LEFT = 6  # oscillates alongside on the left
 RADAR_RIGHT = 8  # hovers just behind on the right
 RADAR_LEFT2 = 9  # second car on the left: when it overlaps with RADAR_LEFT -> three wide
+GT4 = {14, 15, 16, 17, 18}  # second, slower class -> multiclass relative
 BACKMARKER = 19  # lapped car the player catches -> relative "lap down" color
 PINNED = {RADAR_LEFT: "L", RADAR_LEFT2: "L", RADAR_RIGHT: "R"}
 MAX_CARS = 64
@@ -90,8 +91,16 @@ class MockSource:
         self.rng = rng
         n = len(DRIVERS)
         self.pace = [1 + rng.uniform(-0.012, 0.02) for _ in range(n)]
+        for i in GT4:
+            self.pace[i] = 1.07 + rng.uniform(0, 0.02)
         self.pace[PLAYER] = 1.0
         self.prog = [3.0 - i * 0.012 for i in range(n)]  # 3 laps in, single file
+        # GT4s: two just ahead on the same lap (player catches them), rest a lap down
+        gt4 = sorted(GT4)
+        self.prog[gt4[0]] = self.prog[PLAYER] + 0.006
+        self.prog[gt4[1]] = self.prog[PLAYER] + 0.015
+        for k, i in enumerate(gt4[2:]):
+            self.prog[i] = self.prog[PLAYER] - 1 + 0.03 + 0.25 * k
         # backmarker: a lap down, just ahead of the player on track, slower
         self.prog[BACKMARKER] = self.prog[PLAYER] - 1 + 0.004
         self.pace[BACKMARKER] = 1.08
@@ -112,7 +121,9 @@ class MockSource:
                         "CarIdx": i,
                         "UserName": name,
                         "CarNumber": str(num),
-                        "CarClassID": 1,
+                        "CarClassID": 2 if i in GT4 else 1,
+                        "CarClassShortName": "GT4" if i in GT4 else "GT3",
+                        "CarClassColor": 0x53FF77 if i in GT4 else 0xFFDA59,
                         "FlairName": country,
                         "CarIsPaceCar": 0,
                         "IsSpectator": 0,
@@ -167,6 +178,10 @@ class MockSource:
         position = [0] * MAX_CARS
         for rank, i in enumerate(order, 1):
             position[i] = rank
+        class_position = [0] * MAX_CARS
+        for group in ([i for i in order if i not in GT4], [i for i in order if i in GT4]):
+            for rank, i in enumerate(group, 1):
+                class_position[i] = rank
 
         def pad(values, fill):
             return list(values) + [fill] * (MAX_CARS - len(values))
@@ -195,6 +210,7 @@ class MockSource:
             "YawNorth": _yaw_north(pct_p),
             "SessionTime": now,
             "SessionNum": 0,
+            "SessionState": 4,  # racing
             "SessionTimeRemain": max(0.0, RACE_LEN_S - now),
             "SessionLapsTotal": 32767,
             "PlayerCarIdx": PLAYER,
@@ -207,9 +223,13 @@ class MockSource:
             "CarIdxLapCompleted": pad([math.floor(x) for x in self.prog], -1),
             "CarIdxLapDistPct": pad([x % 1 for x in self.prog], -1.0),
             "CarIdxPosition": position,
-            "CarIdxClassPosition": position,
+            "CarIdxClassPosition": class_position,
             "CarIdxBestLapTime": pad(self.best_lap, -1.0),
             "CarIdxLastLapTime": pad(self.last_lap, -1.0),
             "CarIdxOnPitRoad": pad([False] * n, False),
+            # a car near the player talks for 3 s every 10 s
+            "RadioTransmitCarIdx": (RADAR_RIGHT, -1, -1, RADAR_LEFT, -1, PLAYER, -1)[int(now // 10) % 7]
+            if now % 10 < 3
+            else -1,
         }
         return telemetry, self.info

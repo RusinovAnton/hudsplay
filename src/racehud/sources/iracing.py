@@ -7,6 +7,7 @@ import time
 TELEMETRY_VARS = (
     "SessionTime",
     "SessionNum",
+    "SessionState",
     "SessionTimeRemain",
     "SessionLapsTotal",
     "PlayerCarIdx",
@@ -33,6 +34,7 @@ TELEMETRY_VARS = (
     "CarIdxBestLapTime",
     "CarIdxLastLapTime",
     "CarIdxOnPitRoad",
+    "RadioTransmitCarIdx",
 )
 INFO_KEYS = ("DriverInfo", "WeekendInfo", "SessionInfo")
 

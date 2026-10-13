@@ -42,6 +42,14 @@ dead-reckoning, `trackmap.py`), cached in `maps/<TrackID>-<config>.json`. Painte
 every ~10 m green/red by delta gained/lost vs `delta_reference` (same reference as
 the delta bar). Car dots from lap %.
 
+Map has a follow mode (edit mode -> select map -> "follow me" + "follow range"):
+centred on me, rotated heading-up, paint drawn uncached for visible pieces only.
+Session "pos" is colored vs grid position (recorded at SessionState 3/4): green
+gained, red lost, stronger with more places.
+
+Relative: position badge (class color in multiclass), class tag or +1L/-1L tag,
+radio icon from RadioTransmitCarIdx.
+
 Edit mode: click selects a widget -> panel sliders for its size, card background
 opacity and whole-widget opacity (per widget, saved with position in localStorage).
 Drag = move, mouse wheel = resize. Radar also has "view range" in metres: it shows only

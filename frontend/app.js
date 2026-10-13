@@ -88,10 +88,22 @@ function setHtml(el, html) {
   if (el.innerHTML !== html) el.innerHTML = html;
 }
 
+const POS_FULL_PLACES = 5; // places gained/lost for full color
+
 function renderSession(s) {
   const total = s.lapsTotal == null ? "–" : `${s.lapsEstimated ? "~" : ""}${s.lapsTotal}`;
   setHtml($("s-lap"), `${s.lap}<span class="tot">/${total}</span>`);
   setHtml($("s-pos"), s.pos > 0 ? `${s.pos}<span class="tot">/${s.cars}</span>` : "–");
+  // vs grid position: green = gained, red = lost; more places -> stronger color
+  const pos = $("s-pos");
+  if (s.startPos && s.pos > 0 && s.pos !== s.startPos) {
+    const gained = s.startPos - s.pos;
+    const k = Math.min(Math.abs(gained) / POS_FULL_PLACES, 1);
+    pos.style.color = `color-mix(in srgb, var(${gained > 0 ? "--c-good" : "--c-bad"}) ${Math.round(35 + 65 * k)}%, var(--c-fg))`;
+    pos.title = `started P${s.startPos}`;
+  } else {
+    pos.style.color = "";
+  }
   setText($("s-time"), fmtClock(s.timeRemain));
 }
 
@@ -125,6 +137,14 @@ function renderFuel(f) {
   else setText($("f-need"), "ok", "good");
 }
 
+// shown next to the name while that driver is on the radio
+const RADIO_ICON =
+  '<svg class="radio" viewBox="0 0 16 16" aria-hidden="true">' +
+  '<rect x="6" y="2" width="4" height="7" rx="2" fill="currentColor"/>' +
+  '<path d="M4 7.5a4 4 0 0 0 8 0M8 11.5V14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>' +
+  '<path class="wave" d="M1.8 5.5a6.5 6.5 0 0 0 0 4M14.2 5.5a6.5 6.5 0 0 1 0 4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>' +
+  "</svg>";
+
 const stRows = new Map(); // car id -> row elements
 const ROW_MOVE_MS = 300;
 function standingsRow() {
@@ -132,9 +152,9 @@ function standingsRow() {
   row.className = "srow";
   row.innerHTML =
     '<span class="pos"></span><span class="num"></span><img class="flag" alt="">' +
-    '<span class="name"></span><span class="best"></span><span class="gap"></span>';
-  const [pos, num, flag, name, best, gap] = row.children;
-  return { row, pos, num, flag, name, best, gap };
+    `<span class="name"></span>${RADIO_ICON}<span class="tag"></span><span class="best"></span><span class="gap"></span>`;
+  const [pos, num, flag, name, radio, tag, best, gap] = row.children;
+  return { row, pos, num, flag, name, radio, tag, best, gap };
 }
 
 // rows keep their element per car; when the order changes they slide (FLIP)
@@ -162,6 +182,8 @@ function reorderRows(container, ids) {
   }
 }
 
+let multiclass = false;
+
 function renderStandings(rows) {
   const container = $("st-rows");
   const ids = rows.map((r) => String(r.id));
@@ -182,9 +204,21 @@ function renderStandings(rows) {
     const el = stRows.get(String(r.id));
     el.row.classList.toggle("me", r.isMe);
     el.row.classList.toggle("pit", r.inPit);
+    el.row.classList.toggle("talking", !!r.radio);
     el.row.classList.toggle("lap-up", r.lapRel > 0);
     el.row.classList.toggle("lap-down", r.lapRel < 0);
     setText(el.pos, r.pos > 0 ? `P${r.pos}` : "–");
+    // multiclass: badge in the car's class color + class tag; lap up/down tag otherwise wins
+    const clsColor = multiclass && r.clsColor ? r.clsColor : "";
+    if (el.pos.dataset.cls !== clsColor) {
+      el.pos.dataset.cls = clsColor;
+      el.pos.style.setProperty("--badge", clsColor || "");
+      el.pos.classList.toggle("class-color", !!clsColor);
+    }
+    const lapTag = r.lapRel ? `${r.lapRel > 0 ? "+" : ""}${r.lapRel}L` : "";
+    setText(el.tag, lapTag || (multiclass ? r.cls : ""), lapTag ? (r.lapRel > 0 ? "lap-up" : "lap-down") : multiclass ? "cls" : "");
+    if (!lapTag && multiclass) el.tag.style.color = r.clsColor || "";
+    else el.tag.style.color = "";
     setText(el.num, `#${r.num}`);
     const src = r.cc ? `https://flagcdn.com/w40/${r.cc}.png` : "";
     if (el.flag.dataset.src !== src) {
@@ -455,6 +489,11 @@ function renderRadar(r) {
 // |delta| change per metre for full paint intensity (bar: 0.15 s/s at ~50 m/s)
 const PAINT_FULL_S_PER_M = 0.003;
 const mapCache = { version: -1, points: null };
+const mapView = { heading: null };
+const MAP_FOLLOW_DEFAULT_M = 400; // follow mode: metres of track from me to the top edge
+const MAP_FOLLOW_Y = 0.72; // follow mode: my car sits this far down the widget
+const MAP_HEADING_LOOK = 0.004; // lap % either side used to measure my heading
+const MAP_ROTATE_EASE = 0.2; // per-frame easing of the follow rotation
 
 // ---------- map paint: smooth gradient
 // Each ~10 m piece gets a signed strength (sign of delta = green/red side, delta-bar
@@ -479,8 +518,8 @@ function smoothPaint(paint, segLen, paintNow) {
     if (!p || p[0] === 0) continue;
     const kk = Math.max(-1, Math.min(1, p[1] / fullStep));
     const strength = BAR_MIN_ALPHA + (1 - BAR_MIN_ALPHA) * (kk + 1) / 2;
-    const old = paintNow != null && k >= paintNow ? 0.45 : 1; // previous lap: dimmer
-    raw[k] = { v: (p[0] < 0 ? -1 : 1) * strength, w: old };
+    // pieces not driven yet this lap keep last lap's color at full strength
+    raw[k] = { v: (p[0] < 0 ? -1 : 1) * strength, w: 1 };
   }
   const sigma = Math.max(1, PAINT_BLUR_M / segLen);
   const R = Math.ceil(sigma * 2.5);
@@ -500,10 +539,19 @@ function smoothPaint(paint, segLen, paintNow) {
   return out;
 }
 
-function drawPaint(ctx, m, at, W, H) {
+function drawPaint(ctx, m, at, W, H, follow) {
   const paint = m.paint || [];
   const S = paint.length;
   if (!S) return;
+  if (follow) {
+    // view rotates every frame: no cache, draw only pieces on screen
+    if (paintCache.followKey !== `${m.version}|${m.paintNow}|${S}`) {
+      paintCache.followKey = `${m.version}|${m.paintNow}|${S}`;
+      paintCache.sm = smoothPaint(paint, m.segLen, m.paintNow);
+    }
+    strokePaint(ctx, paintCache.sm, S, at, (x, y) => x > -20 && y > -20 && x < W + 20 && y < H + 20);
+    return;
+  }
   const dpr = window.devicePixelRatio || 1;
   const key = [m.version, m.paintNow, S, W, H, dpr, m.mirror, colors["--c-good"], colors["--c-bad"], colors["--c-muted"]].join("|");
   if (paintCache.key !== key) {
@@ -514,10 +562,15 @@ function drawPaint(ctx, m, at, W, H) {
     const o = off.getContext("2d");
     o.setTransform(dpr, 0, 0, dpr, 0, 0);
     o.clearRect(0, 0, W, H);
+    strokePaint(o, smoothPaint(paint, m.segLen, m.paintNow), S, at, () => true);
+  }
+  ctx.drawImage(paintCache.canvas, 0, 0, W, H);
+}
+
+function strokePaint(o, sm, S, at, visible) {
     o.lineWidth = 4;
     o.lineCap = "butt"; // round caps would stack alpha at every joint
     const good = hexRgb(colors["--c-good"]), bad = hexRgb(colors["--c-bad"]), mid = hexRgb(colors["--c-muted"]);
-    const sm = smoothPaint(paint, m.segLen, m.paintNow);
     const colorAt = (k) => {
       const p = sm[k % S];
       if (!p) return null;
@@ -530,6 +583,7 @@ function drawPaint(ctx, m, at, W, H) {
       if (!c0 || !c1) continue;
       // gradient from this piece's centre to the next one's: no visible steps
       const [x0, y0] = at((k + 0.5) / S), [x1, y1] = at((k + 1.5) / S);
+      if (!visible(x0, y0) && !visible(x1, y1)) continue;
       const grad = o.createLinearGradient(x0, y0, x1, y1);
       grad.addColorStop(0, c0);
       grad.addColorStop(1, c1);
@@ -540,8 +594,6 @@ function drawPaint(ctx, m, at, W, H) {
       o.lineTo(x1, y1);
       o.stroke();
     }
-  }
-  ctx.drawImage(paintCache.canvas, 0, 0, W, H);
 }
 
 function renderMap(m) {
@@ -570,29 +622,57 @@ function renderMap(m) {
   }
   setText(title, "// map");
 
-  // fit to canvas, keep aspect, y up
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const [x, y] of pts) {
-    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-  }
-  const pad = 10;
-  const sc = Math.min((W - 2 * pad) / (maxX - minX || 1), (H - 2 * pad) / (maxY - minY || 1));
-  const ox = (W - (maxX - minX) * sc) / 2, oy = (H - (maxY - minY) * sc) / 2;
-  const px = (x) => (m.mirror ? maxX - x : x - minX) * sc + ox;
-  const py = (y) => H - ((y - minY) * sc + oy);
+  // world position (metres, y up) at a lap %, mirror applied
   const N = pts.length;
-  const at = (pct) => {
+  const mir = m.mirror ? -1 : 1;
+  const world = (pct) => {
     const f = (((pct % 1) + 1) % 1) * N;
     const i = Math.floor(f) % N, j = (i + 1) % N, t = f - Math.floor(f);
-    return [px(pts[i][0] + (pts[j][0] - pts[i][0]) * t), py(pts[i][1] + (pts[j][1] - pts[i][1]) * t)];
+    return [mir * (pts[i][0] + (pts[j][0] - pts[i][0]) * t), pts[i][1] + (pts[j][1] - pts[i][1]) * t];
   };
+
+  // world -> screen: whole-track overview, or follow mode (me centred low, heading up)
+  const w = $("w-map");
+  const me = (m.cars || []).find((c) => c[1] === 1);
+  const follow = w.dataset.follow === "1" && !!me;
+  let toS;
+  if (follow) {
+    const range = parseFloat(w.dataset.frange) || MAP_FOLLOW_DEFAULT_M;
+    const [cx, cy] = world(me[0]);
+    const [ax, ay] = world(me[0] + MAP_HEADING_LOOK);
+    const [bx, by] = world(me[0] - MAP_HEADING_LOOK);
+    const target = Math.atan2(ay - by, ax - bx);
+    // ease the rotation so the map doesn't twitch
+    if (mapView.heading == null) mapView.heading = target;
+    const diff = Math.atan2(Math.sin(target - mapView.heading), Math.cos(target - mapView.heading));
+    mapView.heading += diff * MAP_ROTATE_EASE;
+    const phi = Math.PI / 2 - mapView.heading; // rotate heading onto screen-up
+    const c = Math.cos(phi), s = Math.sin(phi);
+    const sc = (H * MAP_FOLLOW_Y) / range; // `range` metres from me to the top edge
+    toS = (x, y) => {
+      const dx = x - cx, dy = y - cy;
+      return [W / 2 + (dx * c - dy * s) * sc, H * MAP_FOLLOW_Y - (dx * s + dy * c) * sc];
+    };
+  } else {
+    mapView.heading = null;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const [x0, y] of pts) {
+      const x = mir * x0;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+    const pad = 10;
+    const sc = Math.min((W - 2 * pad) / (maxX - minX || 1), (H - 2 * pad) / (maxY - minY || 1));
+    const ox = (W - (maxX - minX) * sc) / 2, oy = (H - (maxY - minY) * sc) / 2;
+    toS = (x, y) => [(x - minX) * sc + ox, H - ((y - minY) * sc + oy)];
+  }
+  const at = (pct) => toS(...world(pct));
 
   // base track
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
-  pts.forEach(([x, y], i) => (i ? ctx.lineTo(px(x), py(y)) : ctx.moveTo(px(x), py(y))));
+  for (let i = 0; i < N; i++) ctx[i ? "lineTo" : "moveTo"](...at(i / N));
   ctx.closePath();
   ctx.strokeStyle = colors["--c-muted"];
   ctx.globalAlpha = 0.35;
@@ -600,7 +680,7 @@ function renderMap(m) {
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  drawPaint(ctx, m, at, W, H);
+  drawPaint(ctx, m, at, W, H, follow);
 
   // start/finish
   const [sx, sy] = at(0);
@@ -618,7 +698,21 @@ function renderMap(m) {
   const cars = [...(m.cars || [])].sort((a, b) => (a[1] === 1) - (b[1] === 1));
   for (const [pct, kind] of cars) {
     const [x, y] = at(pct);
+    if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue;
     const [col, r] = style[kind] || style[0];
+    if (kind === 1 && follow) {
+      // me in follow mode: arrow pointing up (direction of travel)
+      ctx.beginPath();
+      ctx.moveTo(x, y - 7);
+      ctx.lineTo(x + 5, y + 5);
+      ctx.lineTo(x, y + 2);
+      ctx.lineTo(x - 5, y + 5);
+      ctx.closePath();
+      ctx.fillStyle = colors[col];
+      ctx.fill();
+      ctx.strokeStyle = colors["--c-bg"]; ctx.lineWidth = 1.5; ctx.stroke();
+      continue;
+    }
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = colors[col];
@@ -643,7 +737,7 @@ function frame() {
     // each widget isolated: one failing render must not blank the others
     for (const [render, data] of [
       [renderSession, state.session],
-      [renderStandings, state.relative],
+      [(rows) => { multiclass = !!state.session?.multiclass; renderStandings(rows); }, state.relative],
       [renderFuel, state.fuel],
       [renderDelta, state.delta],
       [renderRadar, state.radar],
@@ -693,7 +787,12 @@ function applyWidgetProps(el, p) {
   if (p.bg != null) el.style.setProperty("--bg-opacity", `${p.bg}%`);
   else el.style.removeProperty("--bg-opacity");
   el.style.setProperty("--w-opacity", (p.op ?? 100) / 100);
-  if (p.range != null) el.dataset.range = p.range; else delete el.dataset.range;
+  // widget-specific settings (radar range, map follow...) live on dataset
+  for (const [key, , , , , , , only] of WIDGET_SLIDERS) {
+    if (!only) continue;
+    if (only === el.dataset.id && p[key] != null) el.dataset[key] = p[key];
+    else delete el.dataset[key];
+  }
 }
 
 function widgetProps(el) {
@@ -731,11 +830,13 @@ function selectWidget(el) {
 }
 
 const WIDGET_SLIDERS = [
-  // key, label, min, max, step, fallback, unit, only for widget id
+  // key, label, min, max, step, fallback, unit ("x" | "%" | "m" | "check"), only for widget id
   ["s", "size", 0.5, 3, 0.05, () => 1, "x"],
   ["bg", "background", 0, 100, 1, () => parseFloat(getComputedStyle(root).getPropertyValue("--bg-opacity")), "%"],
   ["op", "opacity", 10, 100, 1, () => 100, "%"],
   ["range", "view range", 5, 50, 1, () => RADAR_DEFAULT_RANGE, "m", "radar"],
+  ["follow", "follow me", 0, 1, 1, () => 0, "check", "map"],
+  ["frange", "follow range", 100, 1500, 25, () => MAP_FOLLOW_DEFAULT_M, "m", "map"],
 ];
 const slidersFor = (el) => WIDGET_SLIDERS.filter((x) => !x[7] || x[7] === el.dataset.id);
 
@@ -751,12 +852,15 @@ function syncSelectedPanel() {
   if (box.dataset.for !== selected.dataset.id) {
     box.dataset.for = selected.dataset.id;
     box.innerHTML = "";
-    for (const [key, label, min, max, step] of slidersFor(selected)) {
+    for (const [key, label, min, max, step, , unit] of slidersFor(selected)) {
       const row = document.createElement("label");
       row.className = "row";
-      row.innerHTML = `<span>${label} <span class="muted" data-out="${key}"></span></span><input type="range" min="${min}" max="${max}" step="${step}" data-key="${key}">`;
+      const input = unit === "check"
+        ? `<input type="checkbox" data-key="${key}">`
+        : `<input type="range" min="${min}" max="${max}" step="${step}" data-key="${key}">`;
+      row.innerHTML = `<span>${label} <span class="muted" data-out="${key}"></span></span>${input}`;
       row.querySelector("input").addEventListener("input", (e) => {
-        updateWidget(selected, { [key]: parseFloat(e.target.value) });
+        updateWidget(selected, { [key]: unit === "check" ? (e.target.checked ? 1 : 0) : parseFloat(e.target.value) });
       });
       box.appendChild(row);
     }
@@ -769,9 +873,11 @@ function syncSelectedPanel() {
   for (const [key, , , , , fallback, unit] of slidersFor(selected)) {
     const v = p[key] ?? fallback();
     const input = box.querySelector(`input[data-key="${key}"]`);
-    if (document.activeElement !== input) input.value = v;
+    if (unit === "check") input.checked = !!v;
+    else if (document.activeElement !== input) input.value = v;
     box.querySelector(`[data-out="${key}"]`).textContent =
-      unit === "x" ? `${Math.round(v * 100)}%`
+      unit === "check" ? ""
+      : unit === "x" ? `${Math.round(v * 100)}%`
       : unit === "m" ? `${Math.round(v)} m`
       : `${Math.round(v)}%${key === "bg" && p.bg == null ? " (global)" : ""}`;
   }
@@ -827,6 +933,7 @@ const THEME_VARS = [
   ["--c-warn", "warning"],
   ["--c-fuel", "fuel"],
   ["--c-clock", "clock"],
+  ["--c-radio", "radio (talking)"],
   ["--c-label", "labels"],
   ["--c-comment", "titles"],
   ["--c-fg", "text"],

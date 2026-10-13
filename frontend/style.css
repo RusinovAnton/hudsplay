@@ -107,7 +107,7 @@ body.preview {
 .srow {
   will-change: transform;
   display: grid;
-  grid-template-columns: 3ch 4ch 1.35em 16ch 8ch 8ch;
+  grid-template-columns: 4.5ch 4ch 1.35em 16ch 1.1em 4ch 8ch 8ch;
   column-gap: 1ch;
   align-items: center;
   padding: 0 0.4em;
@@ -117,7 +117,55 @@ body.preview {
   background: color-mix(in srgb, var(--c-me) 12%, transparent);
   border-left-color: var(--c-me);
 }
-.srow .pos { color: var(--c-pos); }
+/* radio: visible only while that driver talks */
+.srow .radio {
+  width: 1.15em;
+  height: 1.15em;
+  padding: 0.14em;
+  border-radius: 50%;
+  background: var(--c-radio);
+  color: var(--c-bg);
+  visibility: hidden;
+}
+.srow.talking .radio {
+  visibility: visible;
+  animation: radio-pulse 0.9s ease-in-out infinite;
+}
+@keyframes radio-pulse {
+  50% { opacity: 0.45; }
+}
+
+/* position badge */
+.srow .pos {
+  justify-self: start;
+  min-width: 4ch;
+  padding: 0 0.35em;
+  border-radius: 3px;
+  text-align: center;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--c-pos);
+  background: color-mix(in srgb, var(--c-pos) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-pos) 45%, transparent);
+}
+/* multiclass: badge takes the car's class color */
+.srow .pos.class-color, .srow.me .pos.class-color {
+  color: var(--badge);
+  background: color-mix(in srgb, var(--badge) 20%, transparent);
+  border-color: color-mix(in srgb, var(--badge) 60%, transparent);
+}
+/* class short name or lap up/down tag */
+.srow .tag {
+  font-size: 0.8em;
+  text-align: center;
+}
+.srow .tag.lap-up { color: var(--c-lap-up); font-weight: 500; }
+.srow .tag.lap-down { color: var(--c-lap-down); font-weight: 500; }
+.srow.me .pos {
+  color: var(--c-me);
+  background: color-mix(in srgb, var(--c-me) 22%, transparent);
+  border-color: color-mix(in srgb, var(--c-me) 55%, transparent);
+}
 .srow .num { color: var(--c-number); }
 .srow .name { color: var(--c-name); overflow: hidden; text-overflow: ellipsis; }
 .srow.me .name { color: var(--c-me); }
