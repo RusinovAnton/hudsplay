@@ -1,6 +1,6 @@
-# iRacing overlay: notes for Claude
+# racehud: notes for Claude
 
-Personal iRacing overlay. Built on macOS against mock data, continued on the
+racehud: personal iRacing HUD overlay. Built on macOS against mock data, continued on the
 Windows sim PC with real iRacing. See README.md for architecture and run commands.
 
 ## Owner preferences
@@ -22,9 +22,9 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
 
 ## Rules
 
-- All derived logic lives in `src/overlay/engine.py`. Sources only read raw
+- All derived logic lives in `src/racehud/engine.py`. Sources only read raw
   values in iRacing SDK var names. Keep `sources/mock.py` producing the same
-  shape so `uv run overlay --mock` stays a working UI dev loop.
+  shape so `uv run racehud --mock` stays a working UI dev loop.
 - The engine runs at 60 Hz, so no YAML parsing or heavy work per frame. Session info is
   re-read only when its update counter changes (`sources/iracing.py`).
 - The pump loop in `server.py` must never crash mid-race. Exceptions are logged and the loop continues.
@@ -53,7 +53,7 @@ lap-up/lap-down cars colored. The ▲/▼ delta widgets use race-position rivals
 
 **Not yet verified against real iRacing.** First Windows session checklist:
 
-1. `uv sync`, then `uv run overlay --dump` while in a session. Check in `dump/irsdk_dump.txt`:
+1. `uv sync`, then `uv run racehud --dump` while in a session. Check in `dump/irsdk_dump.txt`:
    - Driver country field. The engine reads `DriverInfo.Drivers[].FlairName`
      (`engine.py`, `_load_info`). The real key name is a guess. Fix it if different.
    - `SessionLapsTotal` exists as a telemetry var (fallback: `SessionInfo.Sessions[].SessionLaps`).

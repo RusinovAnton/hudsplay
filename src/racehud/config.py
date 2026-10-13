@@ -1,4 +1,4 @@
-"""Overlay settings. Override any field in config.toml (repo root) under [overlay]."""
+"""racehud settings. Override any field in config.toml (repo root) under [racehud]."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ class Config:
 def load_config(path: Path = ROOT / "config.toml") -> Config:
     cfg = Config()
     if path.exists():
-        data = tomllib.loads(path.read_text()).get("overlay", {})
+        data = tomllib.loads(path.read_text()).get("racehud", {})
         known = {f.name for f in fields(Config)}
         for key, value in data.items():
             if key in known:

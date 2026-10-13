@@ -17,7 +17,7 @@ from .config import ROOT
 MAPS_DIR = ROOT / "maps"
 MAP_POINTS = 1000  # resampled shape, evenly spaced in lap %
 PAINT_STEP_M = 10.0  # delta paint resolution along the track
-log = logging.getLogger("overlay")
+log = logging.getLogger("racehud")
 
 
 class TrackMap:

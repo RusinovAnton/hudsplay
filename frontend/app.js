@@ -949,7 +949,7 @@ $("btn-reset-layout").addEventListener("click", () => { save(LAYOUT_KEY, {}); ap
 document.addEventListener("keydown", (e) => {
   if (e.key === "e" && !e.target.closest("input")) setEditMode(!document.body.classList.contains("edit"));
 });
-window.overlay = { setEditMode };
+window.racehud = { setEditMode };
 
 buildDeltaWidgets();
 applyVisibility();

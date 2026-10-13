@@ -11,7 +11,7 @@ from .server import build_app
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="overlay")
+    parser = argparse.ArgumentParser(prog="racehud")
     parser.add_argument("--mock", action="store_true", help="fake race data, no iRacing needed")
     parser.add_argument("--dump", action="store_true", help="dump iRacing session info + telemetry to ./dump")
     parser.add_argument("--port", type=int, help="override config port")
@@ -43,7 +43,7 @@ def main() -> None:
 
         source = IRacingSource()
 
-    print(f"overlay: http://{cfg.host}:{cfg.port}/  ({'mock' if args.mock else 'iRacing'})")
+    print(f"racehud: http://{cfg.host}:{cfg.port}/  ({'mock' if args.mock else 'iRacing'})")
     web.run_app(build_app(source, cfg), host=cfg.host, port=cfg.port, print=None)
 
 

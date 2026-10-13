@@ -1,5 +1,5 @@
 {
-  "name": "iracing-overlay-shell",
+  "name": "racehud-shell",
   "private": true,
   "version": "0.1.0",
   "main": "main.js",

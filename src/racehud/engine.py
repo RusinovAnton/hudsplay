@@ -176,7 +176,7 @@ class Engine:
                 "name": _fmt_name(d.get("UserName", ""), self.cfg.name_format),
                 "num": str(d.get("CarNumber", "")),
                 "cls": d.get("CarClassID"),
-                # TODO(windows): verify flair field name with `uv run overlay --dump`
+                # TODO(windows): verify flair field name with `uv run racehud --dump`
                 "cc": to_iso(d.get("FlairName")),
             }
         wi = info.get("WeekendInfo") or {}

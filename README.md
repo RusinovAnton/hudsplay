@@ -1,6 +1,6 @@
-# iRacing overlay
+# racehud
 
-Personal, minimal iRacing overlay. VS Code look, Fira Code, every color configurable.
+Personal, minimal iRacing HUD overlay. VS Code look, Fira Code, every color configurable.
 
 Widgets: session (position, lap / estimated total, time left), relative (cars ±2 on track), fuel
 (tank, per lap, laps left, needed to finish), deltas (session best + live gap
@@ -11,9 +11,9 @@ trend to car ahead/behind), radar (cars within 20 m, side warnings), track map
 
 ```
 iRacing (shared memory, 60 Hz)
-  -> src/overlay/sources/iracing.py   pyirsdk reader          (Windows only)
-  -> src/overlay/engine.py            gaps, fuel, laps, radar (all derived logic)
-  -> src/overlay/server.py            aiohttp: serves frontend/, streams JSON on /ws
+  -> src/racehud/sources/iracing.py   pyirsdk reader          (Windows only)
+  -> src/racehud/engine.py            gaps, fuel, laps, radar (all derived logic)
+  -> src/racehud/server.py            aiohttp: serves frontend/, streams JSON on /ws
   -> frontend/                        HTML/CSS/JS widgets
   -> electron/                        transparent click-through window over the game
 ```
@@ -28,7 +28,7 @@ Requirements: [uv](https://docs.astral.sh/uv/), Node 20+ (for Electron, Windows 
 UI preview with fake data (macOS / anywhere):
 
 ```bash
-uv run overlay --mock
+uv run racehud --mock
 ```
 
 Open http://127.0.0.1:8765/ and press `e` for edit mode.
@@ -39,7 +39,7 @@ On the iRacing PC (Windows):
 start.bat
 ```
 
-Or manually: `uv run overlay` in one terminal, `cd electron && npm install && npm start` in another.
+Or manually: `uv run racehud` in one terminal, `cd electron && npm install && npm start` in another.
 
 iRacing must run in **borderless windowed** mode, or the overlay is hidden.
 
@@ -56,7 +56,7 @@ iRacing must run in **borderless windowed** mode, or the overlay is hidden.
 - Behaviour: create `config.toml` in the repo root:
 
 ```toml
-[overlay]
+[racehud]
 standings_each_side = 2
 standings_class_only = true
 name_format = "short"   # or "full"
@@ -68,7 +68,7 @@ map_mirror = false                 # flip a mirrored track map
 ## Debug
 
 ```bat
-uv run overlay --dump
+uv run racehud --dump
 ```
 
 Writes every telemetry var + session info YAML to `dump/irsdk_dump.txt`.

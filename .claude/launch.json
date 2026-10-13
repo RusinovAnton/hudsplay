@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "overlay-mock",
+      "name": "racehud-mock",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "overlay", "--mock"],
+      "runtimeArgs": ["run", "racehud", "--mock"],
       "port": 8765
     }
   ]

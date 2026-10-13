@@ -1,5 +1,5 @@
 // Transparent, click-through, always-on-top window covering the primary display.
-// Loads the frontend served by the Python backend (uv run overlay).
+// Loads the frontend served by the Python backend (uv run racehud).
 //   Ctrl+Shift+O  toggle edit mode (window takes mouse input, drag widgets, pick colors)
 //   Ctrl+Shift+R  reload frontend
 //   Ctrl+Shift+Q  quit
@@ -35,7 +35,7 @@ function setEditMode(on) {
   win.setIgnoreMouseEvents(!on);
   win.setFocusable(on);
   if (on) win.focus();
-  win.webContents.executeJavaScript(`window.overlay && window.overlay.setEditMode(${on})`);
+  win.webContents.executeJavaScript(`window.racehud && window.racehud.setEditMode(${on})`);
 }
 
 app.whenReady().then(() => {
