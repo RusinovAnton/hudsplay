@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "overlay-mock",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "overlay", "--mock"],
+      "port": 8765
+    }
+  ]
+}
