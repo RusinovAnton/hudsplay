@@ -110,6 +110,42 @@ class IncidentLog:
         return {"count": self.count, "limit": limit, "alert": alert}
 
 
+class OptimalLap:
+    """My optimal lap: best time per track sector over my clean laps, summed (like
+    iRacing's; the SDK has no optimal lap time var). Sector times come from my car's
+    crossing times (CarTrack), sector starts from SplitTimeInfo."""
+
+    def __init__(self, starts: list[float] | None = None):
+        self.starts = starts or [i / 10 for i in range(10)]  # no split info: 10 equal sectors
+        self.best: list[float | None] = [None] * len(self.starts)
+        self.lap: int | None = None
+        self.clean = False
+
+    def update(self, tr, clean: bool) -> None:
+        lap = math.floor(tr.progress)
+        if self.lap is None:  # joined mid-lap: this lap doesn't count
+            self.lap, self.clean = lap, False
+            return
+        if lap != self.lap:
+            if self.clean and lap == self.lap + 1:
+                self._record(tr, self.lap)
+            self.lap, self.clean = lap, clean  # a lap counts only if clean from the line
+        elif not clean:
+            self.clean = False
+
+    def _record(self, tr, lap: int) -> None:
+        ts = [tr.time_at(lap + s) for s in self.starts] + [tr.time_at(lap + 1)]
+        if None in ts:
+            return
+        for i, (a, b) in enumerate(zip(ts, ts[1:])):
+            if b > a and (self.best[i] is None or b - a < self.best[i]):
+                self.best[i] = b - a
+
+    @property
+    def time(self) -> float | None:
+        return None if None in self.best else sum(self.best)
+
+
 class FuelCalc:
     def __init__(self):
         self.lap: int | None = None
@@ -209,10 +245,12 @@ class Engine:
         self.tracks: dict[int, CarTrack] = {}
         self.fuel = FuelCalc()
         self.incidents = IncidentLog()
+        self.optimal = OptimalLap(getattr(self, "sector_starts", None))
         self.trends: dict[tuple[int, bool], dict[int, float]] = {}
         self.gains: dict[tuple[int, bool], list[float]] = {}  # [time, g, smoothed rate]
         self.radar_sides: dict[int, str] = {}
         self.start_pos: int | None = None
+        self.best_seen: dict[int, float] = {}  # best lap per car this session, kept after they leave
         self.paint = DeltaPaint(getattr(self, "track_len", None))
         self.last_now: float | None = None
 
@@ -249,10 +287,25 @@ class Engine:
             self.paint.reset(track_len)
         track_id = wi.get("TrackID")
         self.map.set_track(f"{track_id}-{wi.get('TrackConfigName') or 'default'}" if track_id is not None else None)
+        sectors = sorted(
+            float(s["SectorStartPct"])
+            for s in (info.get("SplitTimeInfo") or {}).get("Sectors") or []
+            if s.get("SectorStartPct") is not None
+        )
+        starts = sectors if sectors and sectors[0] == 0.0 else None
+        if starts != getattr(self, "sector_starts", None):
+            self.sector_starts = starts
+            self.optimal = OptimalLap(starts)
         self.sessions = {
             s.get("SessionNum"): {
                 "type": s.get("SessionType", ""),
                 "laps": _laps_from_info(s.get("SessionLaps")),
+                # official results keep every car's fastest lap, also in the pits / disconnected
+                "fastest": {
+                    r["CarIdx"]: r["FastestTime"]
+                    for r in s.get("ResultsPositions") or []
+                    if r.get("CarIdx") is not None and (r.get("FastestTime") or 0) > 0
+                },
             }
             for s in (info.get("SessionInfo") or {}).get("Sessions") or []
         }
@@ -273,7 +326,7 @@ class Engine:
         self._advance_tracks(t, now)
 
         session, laps_to_go = self._session(t, me)
-        standings, pos, cars = self._standings(t, me, now, session["race"], session["qualify"])
+        standings, pos, cars = self._standings(t, me, now, session["race"], session["standings"])
         ahead, behind = (None, None) if session["qualify"] else self._neighbours(t, me)
         session["pos"], session["cars"] = pos, cars
         session["multiclass"] = self.multiclass
@@ -290,6 +343,7 @@ class Engine:
             "relative": standings,
             "fuel": self._fuel(t, me, laps_to_go),
             "incidents": self._incidents(t, now),
+            "laps": self._laps(t, me),
             "delta": {
                 "best": _r(delta),
                 "ref": DELTA_VARS.get(self.cfg.delta_reference, DELTA_VARS["session_best"])[1],
@@ -381,11 +435,14 @@ class Engine:
         lap = max(done, 0) + 1
         my = self.tracks.get(me)
 
+        # before the start (gridding, pace laps) the clock counts down to the green and
+        # progress is from the grid: nothing to estimate yet (irsdk_StateRacing = 4)
+        started = not race or (t.get("SessionState") or 0) >= 4
         total, estimated, to_go = None, False, None
         if 0 < total_laps < UNLIMITED_LAPS:
             total = total_laps
-            to_go = total - my.progress if my else None
-        elif remain is not None and my:
+            to_go = (total - my.progress if started else total) if my else None
+        elif remain is not None and my and started:
             # time-based: race ends when the leader crosses the line after the clock hits 0
             ref = self._leader(t) if race else me
             ref_tr = self.tracks.get(ref) if ref is not None else None
@@ -404,6 +461,8 @@ class Engine:
             "race": race,
             "track": self.track_name,
             "qualify": "qualify" in stype.lower(),
+            # relative -> best-lap standings
+            "standings": any(k in stype.lower() for k in ("qualify", "practice")),
             "lap": min(lap, total) if total else lap,
             "lapsTotal": total,
             "lapsEstimated": estimated,
@@ -416,7 +475,7 @@ class Engine:
                 return idx
         return None
 
-    def _standings(self, t: dict, me: int, now: float, race: bool, qualify: bool = False):
+    def _standings(self, t: dict, me: int, now: float, race: bool, by_best: bool = False):
         """Race order around me: rivals for the delta widgets, my position, relative rows."""
         class_only = self.cfg.standings_class_only
         positions = self._positions(t, race, class_only)
@@ -436,7 +495,7 @@ class Engine:
             return [], 0, len(order)
 
         my_pos = next(p for _, idx, p in entries if idx == me)
-        rows = self._quali(t, me) if qualify else self._relative(t, me, now, race, positions)
+        rows = self._quali(t, me) if by_best else self._relative(t, me, now, race, positions)
         return rows, my_pos, len(order)
 
     def _positions(self, t: dict, race: bool, class_only: bool) -> dict[int, int]:
@@ -486,9 +545,16 @@ class Engine:
         return ahead and ahead[1], behind and behind[1]
 
     def _best(self, t: dict, idx: int) -> float | None:
+        """Best lap this session. Live CarIdxBestLapTime is -1 once a car is in the garage
+        or gone, so also use the session results and the best we've seen."""
         bests = t.get("CarIdxBestLapTime") or []
-        v = bests[idx] if idx < len(bests) else -1
-        return v if v and v > 0 else None
+        live = bests[idx] if idx < len(bests) else -1
+        results = self.sessions.get(t.get("SessionNum"), {}).get("fastest", {}).get(idx)
+        known = [v for v in (live, results, self.best_seen.get(idx)) if v and v > 0]
+        if not known:
+            return None
+        self.best_seen[idx] = best = min(known)
+        return best
 
     def _row_maker(self, t: dict, me: int):
         """Row builder shared by the relative and the qualifying standings."""
@@ -523,8 +589,9 @@ class Engine:
         return row
 
     def _quali(self, t: dict, me: int) -> list[dict]:
-        """Qualifying standings: cars with a lap time ordered by best lap, a window around
-        me (top of the list until I set a time). Gap = their best - mine, "-" = faster."""
+        """Practice / qualifying standings: every car with a lap time (also in the pits or
+        disconnected) ordered by best lap, a window around me (top of the list until I set
+        a time). Gap = their best - mine, "-" = faster."""
         if me not in self.drivers:
             return []
         my_cls = self.drivers[me]["cls"]
@@ -646,6 +713,14 @@ class Engine:
     def _incidents(self, t: dict, now: float) -> dict:
         self.incidents.update(t.get("PlayerCarMyIncidentCount"), now)
         return self.incidents.summary(self.incident_limit, now)
+
+    def _laps(self, t: dict, me: int) -> dict:
+        my = self.tracks.get(me)
+        if my is not None:
+            self.optimal.update(my, bool(t.get("IsOnTrack", True)) and not t.get("OnPitRoad"))
+        pos = lambda v: v if v and v > 0 else None  # noqa: E731  (-1 / 0 = no lap yet)
+        last, best = pos(t.get("LapLastLapTime")), pos(t.get("LapBestLapTime"))
+        return {"last": _r(last), "best": _r(best), "optimal": _r(self.optimal.time)}
 
     def _fuel(self, t: dict, me: int, laps_to_go: float | None) -> dict:
         level = t.get("FuelLevel")

@@ -131,6 +131,13 @@ class MockSource:
                     for i, (name, country, num) in enumerate(DRIVERS)
                 ],
             },
+            "SplitTimeInfo": {
+                "Sectors": [
+                    {"SectorNum": 0, "SectorStartPct": 0.0},
+                    {"SectorNum": 1, "SectorStartPct": 0.33},
+                    {"SectorNum": 2, "SectorStartPct": 0.67},
+                ]
+            },
             "WeekendInfo": {
                 "TrackLength": f"{TRACK_LEN_M / 1000:.2f} km",
                 "TrackID": 0,
@@ -243,6 +250,8 @@ class MockSource:
             "CarIdxClassPosition": class_position,
             "CarIdxBestLapTime": pad(self.best_lap, -1.0),
             "CarIdxLastLapTime": pad(self.last_lap, -1.0),
+            "LapLastLapTime": self.last_lap[PLAYER],
+            "LapBestLapTime": self.best_lap[PLAYER],
             "CarIdxOnPitRoad": pad([False] * n, False),
             # a car near the player talks for 3 s every 10 s
             "RadioTransmitCarIdx": (RADAR_RIGHT, -1, -1, RADAR_LEFT, -1, PLAYER, -1)[int(now // 10) % 7]

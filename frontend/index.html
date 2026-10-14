@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="offline">
-  <div id="status">// racehud - ON</div>
+  <div id="status">// racehud - ON <button id="status-close" title="close racehud">×</button></div>
 
   <div class="widget" id="w-session" data-id="session">
     <div class="title">// <span id="s-mode">session</span></div>
@@ -41,6 +41,12 @@
     <div class="kv"><span class="k">need</span><span class="v" id="f-need">–</span></div>
   </div>
 
+  <div class="widget" id="w-laps" data-id="laps">
+    <div class="title">// laps</div>
+    <div class="kv"><span class="k">last</span><span class="v" id="l-last">-:--.---</span></div>
+    <div class="kv"><span class="k">optimal</span><span class="v" id="l-opt">-:--.---</span></div>
+  </div>
+
   <div class="widget" id="w-incidents" data-id="incidents">
     <div class="title">// incidents</div>
     <div class="big" id="i-count">–</div>
@@ -62,7 +68,13 @@
   </div>
 
   <div id="edit-panel">
-    <strong>edit mode</strong> <span class="muted">drag · show/hide · colors</span>
+    <div class="panel-head">
+      <span><strong>edit mode</strong> <span class="muted">drag · show/hide · colors</span></span>
+      <span class="buttons">
+        <button id="btn-done">done</button>
+        <button id="btn-exit" title="close the racehud app">exit racehud</button>
+      </span>
+    </div>
     <div class="section">selected widget: <span id="selected-name">click a widget</span></div>
     <div id="selected-rows"></div>
     <div class="section">widgets</div>

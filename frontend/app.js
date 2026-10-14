@@ -139,6 +139,12 @@ function renderIncidents(inc) {
     : "var(--c-muted)";
 }
 
+function renderLaps(l) {
+  const pb = l.last != null && l.best != null && Math.abs(l.last - l.best) < 0.0005;
+  setText($("l-last"), fmtLap(l.last), pb ? "good" : "");
+  setText($("l-opt"), fmtLap(l.optimal));
+}
+
 function renderFuel(f) {
   setText($("f-level"), f.level == null ? "–" : `${f.level.toFixed(1)} L`);
   const fill = $("f-fill"), mark = $("f-mark");
@@ -211,7 +217,7 @@ function reorderRows(container, ids) {
 let multiclass = false;
 
 function renderStandings(rows) {
-  setText($("st-title"), state.session?.qualify ? "// standings" : "// relative");
+  setText($("st-title"), state.session?.standings ? "// standings" : "// relative");
   const container = $("st-rows");
   const ids = rows.map((r) => String(r.id));
   for (const [id, el] of stRows) {
@@ -809,6 +815,7 @@ function frame() {
       [(rows) => { multiclass = !!state.session?.multiclass; renderStandings(rows); }, state.relative],
       [renderFuel, state.fuel],
       [renderIncidents, state.incidents],
+      [renderLaps, state.laps],
       [renderDelta, state.delta],
       [renderRadar, state.radar],
       [renderMap, state.map],
@@ -839,14 +846,35 @@ const DEFAULT_LAYOUT = {
   radar: { x: 44, y: 55 },
   map: { x: 78, y: 3 },
   incidents: { x: 1.5, y: 63 },
+  laps: { x: 10, y: 42 },
   "incident-alert": { x: 44, y: 40 },
 };
 
+// widgets switched off stay visible (dimmed) in edit mode, each with an on/off switch
 function applyVisibility() {
   const hidden = { ...DEFAULT_HIDDEN, ...load(HIDDEN_KEY) };
   for (const el of document.querySelectorAll(".widget")) {
-    el.classList.toggle("off", !!hidden[el.dataset.id]);
+    const off = !!hidden[el.dataset.id];
+    el.classList.toggle("off", off);
+    let btn = el.querySelector(":scope > .w-toggle");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.className = "w-toggle";
+      btn.addEventListener("click", () => setWidgetHidden(el.dataset.id, !el.classList.contains("off")));
+      el.appendChild(btn);
+    }
+    btn.textContent = off ? "off" : "on";
+    btn.title = off ? "show this widget" : "hide this widget";
+    const input = document.querySelector(`#widget-rows input[data-widget="${el.dataset.id}"]`);
+    if (input) input.checked = !off;
   }
+}
+
+function setWidgetHidden(id, off) {
+  const h = { ...DEFAULT_HIDDEN, ...load(HIDDEN_KEY) };
+  h[id] = off;
+  save(HIDDEN_KEY, h);
+  applyVisibility();
 }
 
 // per-widget settings, saved with the position:
@@ -963,6 +991,7 @@ function enableDrag() {
   let drag = null;
   document.addEventListener("pointerdown", (e) => {
     if (!document.body.classList.contains("edit")) return;
+    if (e.target.closest(".w-toggle")) return; // on/off switch: a click, not a drag
     const el = e.target.closest(".widget");
     if (!el) return;
     selectWidget(el);
@@ -1012,6 +1041,8 @@ const THEME_VARS = [
   ["--c-clock", "clock"],
   ["--c-mode", "session mode"],
   ["--c-track", "track name"],
+  ["--c-last-lap", "last lap"],
+  ["--c-optimal-lap", "optimal lap"],
   ["--c-radio", "radio (talking)"],
   ["--c-label", "labels"],
   ["--c-comment", "titles"],
@@ -1084,15 +1115,10 @@ function buildEditPanel() {
     const id = el.dataset.id;
     const row = document.createElement("label");
     row.className = "row";
-    row.innerHTML = `<span>${id}</span><input type="checkbox">`;
+    row.innerHTML = `<span>${id}</span><input type="checkbox" data-widget="${id}">`;
     const input = row.querySelector("input");
     input.checked = !hidden[id];
-    input.addEventListener("change", () => {
-      const h = { ...DEFAULT_HIDDEN, ...load(HIDDEN_KEY) };
-      h[id] = !input.checked;
-      save(HIDDEN_KEY, h);
-      applyVisibility();
-    });
+    input.addEventListener("change", () => setWidgetHidden(id, !input.checked));
     wrows.appendChild(row);
   }
 
@@ -1145,6 +1171,19 @@ $("btn-reset-theme").addEventListener("click", () => {
   buildEditPanel();
 });
 $("btn-reset-layout").addEventListener("click", () => { save(LAYOUT_KEY, {}); applyLayout(); });
+// overlay window: the Electron shell owns click-through, so leaving edit mode goes through it
+$("btn-done").addEventListener("click", () =>
+  window.racehudShell ? window.racehudShell.setEditMode(false) : setEditMode(false));
+$("btn-exit").addEventListener("click", () => window.racehudShell?.quit());
+// banner close button: the overlay is click-through (mouse moves still forwarded), so take
+// clicks only while the pointer is over it. Decided per real move: switching click-through
+// fires a synthetic mouseleave, so enter/leave events would flicker.
+let overClose = false;
+document.addEventListener("mousemove", (e) => {
+  const over = !!e.target.closest?.("#status-close");
+  if (over !== overClose) { overClose = over; window.racehudShell?.setClickable(over); }
+});
+$("status-close").addEventListener("click", () => window.racehudShell?.quit());
 
 // browser preview: press "e" to toggle edit mode. Electron: Ctrl+Shift+O (see electron/main.js)
 document.addEventListener("keydown", (e) => {

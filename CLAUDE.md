@@ -67,13 +67,18 @@ and "show ahead" / "show behind" (bumper gap, default 2 m / 3 m): it shows only 
 car is that close or alongside.
 Relative rows slide when order changes. Radar glow flashes at ~6 Hz when three wide.
 
+Laps widget: last lap (LapLastLapTime, green when it's my best) + optimal lap, computed
+in `OptimalLap` (best time per SplitTimeInfo sector over clean laps, summed).
+
 Relative widget = cars nearest on track (any class), first column = race position
 (ranked live by track progress while racing; CarIdxPosition only updates at timing
 lines), lap-up/lap-down cars colored. The ▲/▼ delta widgets = nearest car ahead /
 behind on track (any class, any lap, same gap timing as the relative; cars on pit
 road skipped unless I'm on it), tagged +1L/-1L or class. Hidden in qualifying.
-In qualifying the relative becomes "standings": cars with a time by best lap, window
-around me, gap = their best - mine. Radar hidden in qualifying.
+In practice + qualifying the relative becomes "standings": every car with a time (best
+lap from live, session ResultsPositions or remembered, so pit/garage/disconnected cars
+stay), window around me, gap = their best - mine. Radar hidden in qualifying.
+Race: no laps-total estimate before SessionState 4 (gridding, pace laps).
 
 **Not yet verified against real iRacing.** First Windows session checklist:
 

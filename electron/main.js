@@ -5,7 +5,7 @@
 //   Ctrl+Shift+R  reload frontend
 //   Ctrl+Shift+Q  quit
 // Tray icon: same actions + start with Windows + open settings folder.
-const { app, BrowserWindow, Menu, Tray, globalShortcut, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, globalShortcut, ipcMain, screen, shell } = require("electron");
 const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
@@ -19,6 +19,7 @@ const BACKEND_RESTART_MS = 2000;
 let win;
 let tray;
 let editMode = false;
+let hoverClickable = false; // pointer over a clickable bit of the overlay (banner close button)
 let backend = null;
 let quitting = false;
 
@@ -66,18 +67,24 @@ function createWindow() {
     hasShadow: false,
     focusable: false, // never steal focus from iRacing
     backgroundColor: "#00000000",
-    webPreferences: { backgroundThrottling: false },
+    webPreferences: { backgroundThrottling: false, preload: path.join(__dirname, "preload.js") },
   });
   win.setAlwaysOnTop(true, "screen-saver");
-  win.setIgnoreMouseEvents(true);
+  applyMouse();
   win.loadURL(URL);
   // backend not up yet -> retry
   win.webContents.on("did-fail-load", () => setTimeout(() => win.loadURL(URL), 1000));
 }
 
+// click-through except in edit mode or while hovering a clickable element; mouse moves
+// are still forwarded so the page can tell when the pointer is over one
+function applyMouse() {
+  win.setIgnoreMouseEvents(!(editMode || hoverClickable), { forward: true });
+}
+
 function setEditMode(on) {
   editMode = on;
-  win.setIgnoreMouseEvents(!on);
+  applyMouse();
   win.setFocusable(on);
   if (on) win.focus();
   win.webContents.executeJavaScript(`window.racehud && window.racehud.setEditMode(${on})`);
@@ -136,6 +143,10 @@ app.whenReady().then(() => {
   globalShortcut.register("CommandOrControl+Shift+O", () => setEditMode(!editMode));
   globalShortcut.register("CommandOrControl+Shift+R", () => win.reload());
   globalShortcut.register("CommandOrControl+Shift+Q", () => app.quit());
+  // edit panel buttons (preload.js)
+  ipcMain.on("racehud:edit-mode", (_e, on) => setEditMode(on));
+  ipcMain.on("racehud:quit", () => app.quit());
+  ipcMain.on("racehud:clickable", (_e, on) => { hoverClickable = !!on; applyMouse(); });
 });
 
 app.on("before-quit", () => { quitting = true; stopBackend(); });

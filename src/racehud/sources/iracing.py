@@ -34,10 +34,12 @@ TELEMETRY_VARS = (
     "CarIdxClassPosition",
     "CarIdxBestLapTime",
     "CarIdxLastLapTime",
+    "LapLastLapTime",
+    "LapBestLapTime",
     "CarIdxOnPitRoad",
     "RadioTransmitCarIdx",
 )
-INFO_KEYS = ("DriverInfo", "WeekendInfo", "SessionInfo")
+INFO_KEYS = ("DriverInfo", "WeekendInfo", "SessionInfo", "SplitTimeInfo")
 
 
 class IRacingSource:
@@ -73,7 +75,7 @@ class IRacingSource:
         update = ir.session_info_update
         if update != self._info_update:
             info = {key: ir[key] or {} for key in INFO_KEYS}
-            if info["DriverInfo"]:
+            if info["DriverInfo"]:  # SplitTimeInfo may be missing: {} is fine
                 self._info_update = update
                 self.info = info
         return telemetry, self.info
