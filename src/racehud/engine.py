@@ -553,16 +553,28 @@ class Engine:
         # first seen on while it stays alongside; new overlaps take the free sides.
         free = list(SPOTTER_SIDES.get(lr, []))
         overlapping = [(ad, d, idx) for ad, d, idx in near if ad <= SIDE_BY_SIDE_M]
+        # nearest car first, so a car pulling away can't take the slot of the one
+        # actually next to me; each keeps its previous side if that's still free
         sides: dict[int, str] = {}
-        for _, _, idx in overlapping:
+        for _, _, idx in overlapping:  # sorted by |d|
+            if not free:
+                break
             prev = self.radar_sides.get(idx)
-            if prev in free:
-                sides[idx] = prev
-                free.remove(prev)
-        for _, _, idx in overlapping:
-            if idx not in sides and free:
-                sides[idx] = free.pop(0)
+            side = prev if prev in free else free[0]
+            sides[idx] = side
+            free.remove(side)
+        # spotter codes stop at three wide; a 4th overlapping car still must not be
+        # drawn through me: put it on an outer lane (its last side, else a free one)
+        outer_free = [o for o in ("L2", "R2") if o not in sides.values()]
+        for _, d, idx in overlapping:
+            if idx in sides or abs(d) > CAR_LENGTH_M or not outer_free:
+                continue
+            prev = self.radar_sides.get(idx, "")
+            want = "L2" if prev.startswith("L") else "R2" if prev.startswith("R") else outer_free[0]
+            side = want if want in outer_free else outer_free[0]
+            sides[idx] = side
+            outer_free.remove(side)
         self.radar_sides = sides
         for ad, d, idx in near:
-            out["cars"].append({"d": round(d, 2), "side": sides.get(idx, "C")})
+            out["cars"].append({"id": idx, "d": round(d, 2), "side": sides.get(idx, "C")})
         return out

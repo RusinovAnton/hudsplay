@@ -269,6 +269,7 @@ function buildDeltaWidgets() {
 }
 
 const PROX_RANGE_S = 2.0; // proximity bar: empty at this gap, full at 0
+const CATCH_MAX_LAPS = 10; // beyond this a "catching in N laps" number is noise
 const CLOSE_GAP_S = 0.5; // below this gap the cars are together: no catch estimate
 const GAIN_FULL_S_PER_LAP = 0.3; // gain/loss rate for full / minimum intensity
 const HOLD_S_PER_LAP = 0.02; // gap change below this per lap reads as "holding"
@@ -308,11 +309,15 @@ function renderRival(w, r, arrow) {
   let kind = "", laps = null;
   if (!r.laps && r.gap < CLOSE_GAP_S) {
     kind = "close"; // already together: a catch estimate means nothing here
+  } else if (r.catchAfterFlag) {
+    kind = "flag"; // closing, but the race ends first
   } else if (r.catchLaps != null && r.catchLaps < 1) {
     kind = "soon";
-  } else if (r.catchLaps != null) {
+  } else if (r.catchLaps != null && r.catchLaps <= CATCH_MAX_LAPS) {
     kind = "catch";
-    laps = r.catchLaps < 10 ? Math.round(r.catchLaps * 2) / 2 : Math.round(r.catchLaps);
+    laps = Math.round(r.catchLaps * 2) / 2;
+  } else if (r.catchLaps != null) {
+    kind = "slow"; // too far out to be a useful number
   } else if (r.closing != null && !r.laps) {
     kind = Math.abs(r.closing) < HOLD_S_PER_LAP ? "hold" : "away";
   }
@@ -327,15 +332,17 @@ function renderRival(w, r, arrow) {
     st.pending = null;
     if (kind === "catch" && now - st.numAt >= STATUS_NUM_MS) { st.laps = laps; st.numAt = now; }
   }
-  const n = st.laps == null ? "" : st.laps < 10 ? st.laps.toFixed(1) : String(st.laps);
+  const n = st.laps == null ? "" : st.laps.toFixed(1);
   const text = {
     catch: ahead ? `catching in ${n} laps` : `catches you in ${n} laps`,
     close: ahead ? "in range" : "on your tail",
     soon: ahead ? "catching this lap" : "catches you this lap",
+    flag: ahead ? "won't catch by the flag" : "safe to the flag",
+    slow: "closing slowly",
     hold: "holding",
     away: ahead ? "pulling away" : "dropping back",
   }[st.kind] || "";
-  setText(w.catchEl, text, st.kind === "catch" && r.catchAfterFlag ? "after-flag" : "");
+  setText(w.catchEl, text, "");
 }
 
 function renderDelta(d) {
@@ -382,6 +389,8 @@ function refreshColors() {
 
 const RADAR_DEFAULT_RANGE = 20; // metres
 const RADAR_DIM = 0.55; // opacity of in-line (not alongside) cars
+const RADAR_SLIDE_MS = 120; // sideways easing time constant
+const radarAnim = { t: 0, lat: new Map() }; // car id -> current sideways position
 
 function renderRadar(r) {
   const canvas = $("radar");
@@ -462,14 +471,28 @@ function renderRadar(r) {
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
   };
 
+  // ease each car's sideways position so moving alongside slides instead of jumping;
+  // color and brightness blend from dim ahead/behind to alongside red with it
+  const now = performance.now();
+  const dt = radarAnim.t ? Math.min(now - radarAnim.t, 100) : 0;
+  radarAnim.t = now;
+  const ease = 1 - Math.exp(-dt / RADAR_SLIDE_MS);
+  const seen = new Set();
+  const danger = hexRgb(colors["--c-radar-danger"]);
   for (const car of visibleCars) {
-    // alongside = danger; in line: global ahead/behind color, dimmed
-    const inLine = car.side === "C";
-    const col = !inLine ? colors["--c-radar-danger"] : car.d > 0 ? colors["--c-ahead"] : colors["--c-behind"];
-    ctx.globalAlpha = inLine ? RADAR_DIM : 1;
-    drawCar(c + LANE[car.side] * rad, c - car.d * ppm, col);
+    const target = LANE[car.side];
+    const prev = radarAnim.lat.get(car.id);
+    const lat = prev == null ? target : prev + (target - prev) * ease;
+    radarAnim.lat.set(car.id, lat);
+    seen.add(car.id);
+    const t = Math.min(Math.abs(lat) / Math.abs(LANE.L), 1); // 0 = in line, 1 = alongside
+    const base = hexRgb(car.d > 0 ? colors["--c-ahead"] : colors["--c-behind"]);
+    const [r, g, b] = mixRgb(base, danger, t);
+    ctx.globalAlpha = RADAR_DIM + (1 - RADAR_DIM) * t;
+    drawCar(c + lat * rad, c - car.d * ppm, `rgb(${r},${g},${b})`);
     ctx.globalAlpha = 1;
   }
+  for (const id of radarAnim.lat.keys()) if (!seen.has(id)) radarAnim.lat.delete(id);
   drawCar(c, c, null, colors["--c-me"]);
 
   // nearest ahead / behind distance

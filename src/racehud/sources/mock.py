@@ -186,7 +186,15 @@ class MockSource:
         def pad(values, fill):
             return list(values) + [fill] * (MAX_CARS - len(values))
 
-        alongside = [lane for i, lane in PINNED.items() if abs(self.prog[i] - p) * TRACK_LEN_M < 4.8]
+        # every car has a lane (pinned ones fixed, others alternate) so passes and
+        # lappings come by on a side, like the real spotter reports them
+        alongside = []
+        for i in range(n):
+            if i == PLAYER:
+                continue
+            d = (self.prog[i] - p + 0.5) % 1 - 0.5  # wrapped track distance in laps
+            if abs(d) * TRACK_LEN_M < 4.8:
+                alongside.append(PINNED.get(i, "L" if i % 2 == 0 else "R"))
         n_left, n_right = alongside.count("L"), alongside.count("R")
         # irsdk_CarLeftRight: 1 clear, 2 left, 3 right, 4 both, 5 two left, 6 two right
         if n_left and n_right:

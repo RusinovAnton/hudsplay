@@ -201,7 +201,6 @@ body.preview {
   color: var(--c-muted);
   min-height: 1.3em;
 }
-.delta .catch.after-flag { opacity: 0.45; }
 /* proximity bar: no centre line, neutral until a trend exists */
 .delta.ahead .bar::after, .delta.behind .bar::after, .delta.closest .bar::after { display: none; }
 .delta.ahead .fill.prox { background: var(--c-ahead); }
