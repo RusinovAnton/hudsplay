@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>racehud: minimal iRacing HUD overlay in code-editor style</title>
+  <meta name="description" content="racehud is a free, open source (MIT), minimal and fully configurable HUD overlay for iRacing on Windows. Relative, standings, fuel calculator, deltas, radar, track map and incidents, styled like a code editor (VS Code Dark+, Fira Code).">
+  <meta name="keywords" content="iRacing overlay, iRacing HUD, iRacing relative, iRacing fuel calculator, iRacing radar, sim racing overlay, iRacing track map, iRacing delta, minimal overlay">
+  <meta name="author" content="Anton Rusinov">
+  <meta name="theme-color" content="#1e1e1e">
+  <link rel="canonical" href="https://rusinovanton.github.io/racehud/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="racehud">
+  <meta property="og:title" content="racehud: minimal iRacing HUD overlay in code-editor style">
+  <meta property="og:description" content="Relative, standings, fuel, deltas, radar, track map and incidents for iRacing. Minimal, click-through and configurable. Looks like your code editor.">
+  <meta property="og:url" content="https://rusinovanton.github.io/racehud/">
+  <meta property="og:image" content="https://rusinovanton.github.io/racehud/img/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="racehud overlay widgets on a dark background, styled like a code editor">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="racehud: minimal iRacing HUD overlay in code-editor style">
+  <meta name="twitter:description" content="Relative, standings, fuel, deltas, radar, track map and incidents for iRacing. Minimal, click-through and configurable.">
+  <meta name="twitter:image" content="https://rusinovanton.github.io/racehud/img/og.png">
+
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="img/icon.png" type="image/png">
+  <link rel="apple-touch-icon" href="img/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "racehud",
+    "description": "Minimal, configurable HUD overlay for iRacing: relative, standings, fuel calculator, deltas, radar, track map and incidents, styled like a code editor.",
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Windows 10, Windows 11",
+    "url": "https://rusinovanton.github.io/racehud/",
+    "downloadUrl": "https://github.com/RusinovAnton/racehud/releases/latest/download/racehud-setup.exe",
+    "image": "https://rusinovanton.github.io/racehud/img/og.png",
+    "screenshot": "https://rusinovanton.github.io/racehud/img/hero.webp",
+    "author": { "@type": "Person", "name": "Anton Rusinov", "url": "https://github.com/RusinovAnton" },
+    "license": "https://opensource.org/licenses/MIT",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+</head>
+<body>
+  <header class="titlebar">
+    <a class="brand" href="#top"><img src="img/icon.png" alt="" width="20" height="20"> <span aria-label="racehud"><span class="lg-slash">//</span><span class="lg-race">race</span><span class="lg-hud">hud</span></span></a>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#widgets">widgets.hud</a>
+      <a href="#edit-mode">edit-mode.hud</a>
+      <a href="#install">install.md</a>
+      <a href="#faq">faq.md</a>
+    </nav>
+    <a class="gh" href="https://github.com/RusinovAnton/racehud">GitHub</a>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <p class="comment">// iRacing HUD overlay</p>
+      <h1 aria-label="racehud"><span class="lg-slash">//</span><span class="lg-race">race</span><span class="lg-hud">hud</span></h1>
+      <p class="lead">A minimal, configurable overlay for iRacing that looks like your code editor.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/RusinovAnton/racehud/releases/latest/download/racehud-setup.exe">Download for Windows</a>
+        <a class="btn" href="https://github.com/RusinovAnton/racehud">View source</a>
+      </div>
+      <p class="meta">free &amp; open source (MIT) · Windows 10/11 · iRacing in borderless windowed mode</p>
+      <figure class="window">
+        <div class="window-bar"><span></span><span></span><span></span><em>overlay.hud</em></div>
+        <div class="demo" id="demo">
+          <img src="img/hero.webp" width="1920" height="1080" fetchpriority="high"
+               alt="racehud overlay: session, relative with iRating, fuel, laps, incidents, delta bars, Monza track map and radar on a dark background">
+          <button class="play" id="play-demo" type="button">▶ live demo</button>
+        </div>
+        <figcaption>A recorded race playing through the real HUD. Press <kbd>e</kbd> in the demo for edit mode.</figcaption>
+      </figure>
+    </section>
+
+    <section class="features" aria-label="Highlights">
+      <div><h2>// click-through</h2><p>A transparent, always-on-top window. It never steals focus or mouse input from the sim.</p></div>
+      <div><h2>// 60 Hz</h2><p>Reads iRacing's official telemetry 60 times a second. Gaps, deltas and the radar keep up with the car.</p></div>
+      <div><h2>// configurable</h2><p>Move, resize and toggle every widget, set its opacity, and recolour every data type live.</p></div>
+      <div><h2>// color-blind safe</h2><p>One-click palettes for red/green and blue/yellow colour blindness cover every good/bad colour.</p></div>
+      <div><h2>// tray app</h2><p>Installer, desktop shortcut, start with Windows and a tray icon. No console windows.</p></div>
+      <div><h2>// minimal</h2><p>Dark, quiet, Fira Code. Widgets hide themselves when they have nothing to say.</p></div>
+    </section>
+
+    <section id="widgets" class="widgets">
+      <p class="comment">// widgets</p>
+      <h2 class="section-title">Every widget, one job</h2>
+
+      <article class="widget-doc">
+        <img src="img/w-relative.webp" width="535" height="149" loading="lazy" alt="racehud relative widget: positions, car numbers, iRating, flags, names, class, best laps and gaps">
+        <div>
+          <h3>// relative</h3>
+          <p>The cars nearest to you on track, any class, with gaps timed the same way as iRacing's own relative.</p>
+          <ul>
+            <li>race position, ranked live by track position, not only at timing lines</li>
+            <li>car number, iRating as <code>1.2k</code>, country flag, class tag</li>
+            <li>lapped and lapping cars tagged <code>+1L</code> / <code>-1L</code> and coloured</li>
+            <li>radio icon while a driver is talking; rows slide when the order changes</li>
+            <li>in practice and qualifying it becomes <b>standings</b>: every car with a time by best lap, including cars in the pits or disconnected</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <img src="img/w-session.webp" width="148" height="147" loading="lazy" alt="racehud session widget: session type, lap of total, position, time left, track name">
+        <div>
+          <h3>// session</h3>
+          <p>Session type as the title (practice, qualify, race), current lap of the total, position and time left.</p>
+          <ul>
+            <li>timed races estimate the total laps from the leader's pace (shown as <code>~28</code>), not before the green</li>
+            <li>position turns green or red with places gained or lost since the start</li>
+            <li>track name and layout at the bottom</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <img src="img/w-delta-best.webp" width="274" height="71" loading="lazy" alt="racehud delta bar against the session best lap">
+        <div>
+          <h3>// Δ delta</h3>
+          <p>Live delta to your session best (or best, optimal, last lap: your pick). Colour shows the sign; brightness shows the trend, bright while it grows and faded while it shrinks.</p>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <div class="stack">
+          <img src="img/w-delta-ahead.webp" width="274" height="86" loading="lazy" alt="racehud gap widget for the car ahead">
+          <img src="img/w-delta-behind.webp" width="274" height="86" loading="lazy" alt="racehud gap widget for the car behind">
+        </div>
+        <div>
+          <h3>// ▲ ahead · ▼ behind</h3>
+          <p>The car right in front of and behind you on track, with the gap in seconds and a bar that fills as it gets closer.</p>
+          <ul>
+            <li>full colour while you're gaining, washed out while you're losing</li>
+            <li>status line: <code>catching in 3 laps</code>, <code>on your tail</code>, <code>holding</code></li>
+            <li>hides beyond a gap you choose (default 10 s)</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <img src="img/w-laps.webp" width="179" height="90" loading="lazy" alt="racehud laps widget: last lap and optimal lap times">
+        <div>
+          <h3>// laps</h3>
+          <p>Your last lap (green when it's your best) and your optimal lap: the sum of your best time in each of the track's sectors over clean laps.</p>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <img src="img/w-fuel.webp" width="148" height="145" loading="lazy" alt="racehud fuel calculator: tank level, use per lap, laps left, fuel needed">
+        <div>
+          <h3>// fuel</h3>
+          <p>Tank level with a marker for what you need to reach the flag, average use per lap, laps left in the tank and how much more you need to finish.</p>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <div class="stack">
+          <img src="img/w-incidents.webp" width="122" height="80" loading="lazy" alt="racehud incident counter">
+          <img src="img/w-incident-alert.webp" width="120" height="54" loading="lazy" alt="racehud incident alert: contact 4x">
+        </div>
+        <div>
+          <h3>// incidents</h3>
+          <p>Your incident count against the session limit, going from gray to red as it grows. When an incident happens, a short alert names it in the middle of the screen: <code>off-track 1x</code>, <code>loss of control 2x</code>, <code>contact 4x</code>.</p>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <img src="img/w-map.webp" width="471" height="381" loading="lazy" alt="racehud track map of Monza painted green and red by time gained and lost">
+        <div>
+          <h3>// map</h3>
+          <p>The real shape of the track, painted every 10 m green or red by time gained or lost against your last lap.</p>
+          <ul>
+            <li>car dots, with you and the cars ahead/behind highlighted</li>
+            <li>follow mode: centred on you and rotated heading-up</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <img src="img/w-radar.webp" width="215" height="215" loading="lazy" alt="racehud radar with a car alongside on the left glowing red">
+        <div>
+          <h3>// radar</h3>
+          <p>Cars around you to scale, with a red glow on the side where someone is alongside. It flashes when you're three wide.</p>
+          <ul>
+            <li>appears only when a car is close: 2 m ahead or 3 m behind by default, adjustable</li>
+            <li>hidden in qualifying</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <img src="img/w-clock.webp" width="144" height="80" loading="lazy" alt="racehud clock widget">
+        <div>
+          <h3>// time</h3>
+          <p>Wall clock, so you know when dinner is.</p>
+        </div>
+      </article>
+    </section>
+
+    <section id="edit-mode" class="edit">
+      <p class="comment">// edit mode · Ctrl+Shift+O</p>
+      <h2 class="section-title">Configure everything, live</h2>
+      <p>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> (or use the tray icon) to edit the overlay on top of the sim:</p>
+      <ul>
+        <li>drag to move, mouse wheel to resize, an on/off switch on every widget</li>
+        <li>per-widget size, background and opacity, radar range, map follow mode, gap limits</li>
+        <li>a colour picker for every data type, plus colour-blind palettes</li>
+        <li>everything is saved automatically</li>
+      </ul>
+      <figure class="window">
+        <div class="window-bar"><span></span><span></span><span></span><em>edit-mode.hud</em></div>
+        <img src="img/edit-mode.webp" width="1920" height="1080" loading="lazy"
+             alt="racehud edit mode: widgets outlined with on/off switches and the settings panel for the selected radar">
+      </figure>
+    </section>
+
+    <section id="install" class="install">
+      <p class="comment">// install.md</p>
+      <h2 class="section-title">Install</h2>
+      <ol>
+        <li><a href="https://github.com/RusinovAnton/racehud/releases/latest/download/racehud-setup.exe">Download <code>racehud-setup.exe</code></a> (or pick a version on the <a href="https://github.com/RusinovAnton/racehud/releases">releases page</a>) and run it. It installs for your user; no admin needed.</li>
+        <li>If Windows SmartScreen warns about an unknown publisher, choose <em>More info → Run anyway</em>. The installer isn't code-signed.</li>
+        <li>In iRacing, set <em>Options → Graphics</em> to <b>borderless windowed</b>. In exclusive fullscreen, overlays are hidden.</li>
+        <li>Join a session. The HUD shows up on its own, and lives in the tray.</li>
+      </ol>
+    </section>
+
+    <section id="faq" class="faq">
+      <p class="comment">// faq.md</p>
+      <h2 class="section-title">FAQ</h2>
+      <details><summary>Is racehud free?</summary><p>Yes. It's free and open source under the MIT license. The code is on <a href="https://github.com/RusinovAnton/racehud">GitHub</a>; issues and pull requests are welcome.</p></details>
+      <details><summary>Is it allowed in iRacing?</summary><p>racehud only reads iRacing's official telemetry API, the same one every overlay uses. It never writes to the sim or touches its files.</p></details>
+      <details><summary>Does it work in fullscreen?</summary><p>Use borderless windowed mode. Windows can't draw overlays over exclusive fullscreen games.</p></details>
+      <details><summary>Where are my settings?</summary><p>Layout and colours are saved automatically. Settings, recorded track maps and the log are in <code>%APPDATA%\racehud\data</code> (tray → Open settings folder).</p></details>
+      <details><summary>Where does the track map come from?</summary><p>iRacing doesn't provide track shapes, so racehud draws each track once, from your driving, and saves it. On a track you've never driven, the map shows a placeholder circle until your first clean lap; after that it's there from the moment you load in.</p></details>
+    </section>
+  </main>
+
+  <script>
+    // live demo: swap the screenshot for the real HUD replaying a recorded race (docs/demo/),
+    // rendered at 1920x1080 and scaled to fit
+    (() => {
+      const box = document.getElementById("demo");
+      document.getElementById("play-demo").addEventListener("click", () => {
+        const frame = document.createElement("iframe");
+        frame.src = "demo/";
+        frame.title = "racehud live demo";
+        const fit = () => { frame.style.transform = `scale(${box.clientWidth / 1920})`; };
+        box.replaceChildren(frame);
+        fit();
+        addEventListener("resize", fit);
+        frame.addEventListener("load", () => frame.focus({ preventScroll: true })); // "e" works right away
+      });
+    })();
+  </script>
+
+  <footer>
+    <p><span class="comment">// made for sim racers who write code</span> · <a href="https://github.com/RusinovAnton/racehud">github.com/RusinovAnton/racehud</a></p>
+    <p class="small">MIT licensed · racehud is not affiliated with or endorsed by iRacing.com Motorsport Simulations.</p>
+  </footer>
+</body>
+</html>

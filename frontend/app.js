@@ -98,6 +98,7 @@ const sessionMode = (type) =>
 function renderSession(s) {
   setText($("s-mode"), sessionMode(s.type));
   setText($("s-track"), s.track || "");
+  setText($("s-config"), s.trackConfig || "");
   const total = s.lapsTotal == null ? "–" : `${s.lapsEstimated ? "~" : ""}${s.lapsTotal}`;
   setHtml($("s-lap"), `${s.lap}<span class="tot">/${total}</span>`);
   setHtml($("s-pos"), s.pos > 0 ? `${s.pos}<span class="tot">/${s.cars}</span>` : "–");
@@ -435,6 +436,7 @@ const RADAR_DEFAULT_RANGE = 20; // metres
 // radar shows when a car is this close bumper to bumper (or alongside); per widget in edit mode
 const RADAR_SHOW_AHEAD_M = 2;
 const RADAR_SHOW_BEHIND_M = 3;
+const REDUCED_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const RADAR_DIM = 0.55; // opacity of in-line (not alongside) cars
 const RADAR_SLIDE_MS = 120; // sideways easing time constant
 const radarAnim = { t: 0, lat: new Map() }; // car id -> current sideways position
@@ -480,7 +482,9 @@ function renderRadar(r) {
 
   // three (or more) wide: glow flashes rapidly (~6 Hz)
   const threeWide = r.spotter === "both" || r.spotter === "left2" || r.spotter === "right2";
-  const flash = threeWide ? (Math.floor(performance.now() / 85) % 2 ? 1 : 0.15) : 1;
+  // (accessibility: "3-wide flashing" off in edit mode, default off with reduced motion)
+  const flashOn = parseFloat(w.dataset.flash ?? (REDUCED_MOTION ? 0 : 1)) > 0;
+  const flash = threeWide && flashOn ? (Math.floor(performance.now() / 85) % 2 ? 1 : 0.15) : 1;
 
   // side warning glow (ACC style): brightest at the rim beside me, fading toward the
   // centre and toward ahead/behind (radial, so no hard line down the middle)
@@ -944,6 +948,7 @@ const WIDGET_SLIDERS = [
   ["range", "view range", 5, 50, 1, () => RADAR_DEFAULT_RANGE, "m", "radar"],
   ["sa", "show ahead", 0, 20, 1, () => RADAR_SHOW_AHEAD_M, "m", "radar"],
   ["sb", "show behind", 0, 20, 1, () => RADAR_SHOW_BEHIND_M, "m", "radar"],
+  ["flash", "3-wide flashing", 0, 1, 1, () => (REDUCED_MOTION ? 0 : 1), "check", "radar"],
   ["follow", "follow me", 0, 1, 1, () => 0, "check", "map"],
   ["frange", "follow range", 100, 1500, 25, () => MAP_FOLLOW_DEFAULT_M, "m", "map"],
   ["hide", "hide beyond", 1, 60, 1, () => RIVAL_HIDE_DEFAULT_S, "s", ["delta-ahead", "delta-behind", "delta-closest"]],

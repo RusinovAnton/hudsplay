@@ -1,0 +1,51 @@
+# Builds the Windows installer and publishes it as a GitHub release.
+# Release: bump "version" in electron/package.json, commit, then
+#   git tag v<version> && git push origin v<version>
+# The website's download button points at releases/latest/download/racehud-setup.exe.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches electron/package.json version
+        shell: pwsh
+        run: |
+          $version = (Get-Content electron/package.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "tag ${{ github.ref_name }} != electron/package.json version $version"
+          }
+
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: electron/package-lock.json
+
+      - name: Install Electron dependencies
+        working-directory: electron
+        run: npm ci
+
+      - name: Build installer (backend exe + NSIS)
+        shell: cmd
+        run: build-installer.bat
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packaging/installer/racehud-setup.exe
+          generate_release_notes: true
+          body: |
+            **Install:** download `racehud-setup.exe` below and run it. Windows SmartScreen may warn
+            because the installer isn't code-signed yet: choose *More info → Run anyway*.
+            In iRacing, use borderless windowed mode. Website: https://rusinovanton.github.io/racehud/

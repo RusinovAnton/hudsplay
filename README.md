@@ -1,6 +1,10 @@
+<p align="center"><img src="docs/img/icon.png" alt="racehud logo" width="96" height="96"></p>
+
 # racehud
 
 Personal, minimal iRacing HUD overlay. VS Code look, Fira Code, every color configurable.
+Website: https://rusinovanton.github.io/racehud/ (source in `docs/`, images from
+`uv run python packaging/capture_screenshots.py`). MIT licensed, see [LICENSE](LICENSE).
 
 ![racehud overlay with mock race data at 1920x1080](docs/screenshot.png)
 
@@ -13,7 +17,7 @@ or follow mode).
 
 ## Installer (recommended)
 
-Run **`racehud-setup-<version>.exe`**. It installs racehud for your user (no admin
+Run **`racehud-setup.exe`**. It installs racehud for your user (no admin
 needed), adds desktop + Start menu shortcuts, and starts it. Windows SmartScreen may
 warn because the installer isn't code-signed: "More info" → "Run anyway".
 
@@ -25,10 +29,15 @@ warn because the installer isn't code-signed: "More info" → "Run anyway".
 - In iRacing: Options → Graphics → **Borderless windowed**, otherwise the overlay is hidden.
 
 **Build the installer** (needs the dev setup below): double-click
-**`build-installer.bat`** → `packaging\installer\racehud-setup-<version>.exe`. It
+**`build-installer.bat`** → `packaging\installer\racehud-setup.exe`. It
 bundles the Python backend with PyInstaller (`racehud-backend.exe`) and the
 overlay with electron-builder (NSIS). Bump `version` in `electron/package.json` for
 a new release. The icon comes from `uv run python packaging/make_icon.py`.
+
+**Release:** bump `version` in `electron/package.json`, commit, then push a tag
+`v<version>` (`git tag v0.1.0 && git push origin v0.1.0`). GitHub Actions
+(`.github/workflows/release.yml`) builds the installer on Windows and publishes it as a
+release; the website's download button always points at the latest one.
 
 ## Dev setup on Windows (the iRacing PC)
 

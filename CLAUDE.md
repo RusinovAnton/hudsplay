@@ -31,6 +31,15 @@ read-only app files, `config.DATA` = user files (repo root in dev,
 `%APPDATA%\racehud\data` when frozen). `%APPDATA%\racehud` is Electron's profile
 (layout/colors in localStorage). Don't write user files under ROOT.
 
+## Website
+
+Landing page in `docs/` (GitHub Pages from `default` → `/docs`, https://rusinovanton.github.io/racehud/).
+Plain HTML/CSS, editor look, no build step. Screenshots + social card come from
+`uv run python packaging/capture_screenshots.py` (mock race via headless Chrome/Edge,
+also stamps image sizes into `docs/index.html`); rerun it after UI changes. The mock
+track is the real Monza outline (bacinger/f1-circuits, MIT, attribution in `mock.py`).
+Owner: no "clever" code-snippet jokes on the site.
+
 ## Rules
 
 - All derived logic lives in `src/racehud/engine.py`. Sources only read raw

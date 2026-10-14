@@ -1,0 +1,43 @@
+/* Default theme: VS Code Dark+. Edit here, or tweak live in edit mode
+   (Ctrl+Shift+O in the overlay window, "e" in a browser) and "copy css". */
+:root {
+  --font: "Fira Code", "Cascadia Code", Consolas, monospace;
+  --ui-scale: 1;
+  --bg-opacity: 82%;
+
+  --c-bg: #1e1e1e;
+  --c-border: #3c3c3c;
+  --c-fg: #d4d4d4;
+  --c-muted: #808080;
+  --c-comment: #6a9955;
+  --c-label: #569cd6;
+
+  --c-pos: #b5cea8;
+  --c-number: #ce9178;
+  --c-name: #9cdcfe;
+  --c-best: #dcdcaa;
+  --c-best-class: #c586c0;
+  --c-me: #ffd700;
+  --c-lap-up: #f48771;
+  --c-lap-down: #3794ff;
+
+  /* global: every car ahead / behind (relative gaps, rivals, map dots, radar) */
+  --c-ahead: #f48771;
+  --c-behind: #89d185;
+
+  --c-good: #89d185;
+  --c-bad: #f48771;
+  --c-warn: #cca700;
+  --c-fuel: #4fc1ff;
+  --c-incidents: #ce9178;
+  --c-clock: #d4d4d4;
+  --c-mode: #dcdcaa;
+  --c-track: #9cdcfe;
+  --c-irating: #b5cea8;
+  --c-last-lap: #d4d4d4;
+  --c-optimal-lap: #c586c0;
+  --c-radio: #4fc1ff;
+
+  --c-radar-car: #9e9e9e;
+  --c-radar-danger: #f14c4c;
+}

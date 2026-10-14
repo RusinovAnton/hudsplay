@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- 1200x630 social card for the website, captured to docs/img/og.png by
+     packaging/capture_screenshots.py (opened as a file, uses docs/img/hero.webp). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    font-family: "Fira Code", Consolas, monospace;
+    display: grid;
+    grid-template-columns: 500px 1fr;
+    align-items: center;
+  }
+  .text { padding: 0 0 0 56px; }
+  .c { color: #6a9955; font-style: italic; font-size: 26px; margin: 0 0 8px; }
+  h1 { margin: 0; font-size: 74px; font-weight: 600; letter-spacing: -2px; line-height: 1; }
+  h1 .s, h1 .h { color: #6a9955; } h1 .r { color: #ffd700; }
+  p { font-size: 24px; line-height: 1.45; margin: 22px 0 0; color: #c8c8c8; }
+  .shot {
+    height: 520px;
+    border: 1px solid #3c3c3c;
+    border-radius: 8px 0 0 8px;
+    border-right: 0;
+    overflow: hidden;
+    background: #111;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+  }
+  .shot img { height: 100%; display: block; }
+</style>
+</head>
+<body>
+  <div class="text">
+    <p class="c">// iRacing HUD overlay</p>
+    <h1><span class="s">//</span><span class="r">race</span><span class="h">hud</span></h1>
+    <p>minimal · configurable<br>looks like your code editor</p>
+  </div>
+  <div class="shot"><img src="../docs/img/hero.webp" alt=""></div>
+</body>
+</html>

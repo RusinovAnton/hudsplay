@@ -10,7 +10,7 @@ import math
 import random
 import time
 
-TRACK_LEN_M = 4000.0
+TRACK_LEN_M = 5793.0  # Monza GP
 BASE_LAP = 95.0
 RACE_LEN_S = 45 * 60
 PLAYER = 7
@@ -22,20 +22,52 @@ BACKMARKER = 19  # lapped car the player catches -> relative "lap down" color
 PINNED = {RADAR_LEFT: "L", RADAR_LEFT2: "L", RADAR_RIGHT: "R"}
 MAX_CARS = 64
 
-def _build_track(n: int = 2000):
-    """Closed blob-shaped circuit, arc-length parametrised to TRACK_LEN_M."""
+# Monza GP outline in metres (x east, y north), clockwise from the start line.
+# Converted from the GeoJSON of bacinger/f1-circuits (circuits/it-1922.geojson):
+#   Copyright (c) 2019-2025 Tomislav Bacinger, MIT License
+#   https://github.com/bacinger/f1-circuits
+MONZA = [
+    (-414.3, -487.5), (-377.8, -61.1), (-361.2, 117.6), (-359.4, 124.9), (-354.3, 129.1), (-347.9, 130.1),
+    (-340.1, 129.1), (-332.7, 128.5), (-325.8, 129.1), (-321.1, 132.7), (-317.5, 137.9), (-316.5, 142.6),
+    (-316.5, 147.8), (-342.4, 245.3), (-346.1, 271.8), (-347.5, 295.8), (-345.6, 321.9), (-335.9, 449),
+    (-332.2, 469.8), (-327.6, 489.1), (-320.7, 509.9), (-311.5, 532.3), (-300.9, 554.2), (-285.2, 578.8),
+    (-269.1, 599), (-247.4, 622), (-223.9, 642.3), (-197.7, 661), (-169.6, 677.2), (-137.8, 692.9),
+    (-106, 703.8), (-70.9, 713.6), (-31.3, 720.5), (9.3, 724.1), (167.3, 737.6), (360.9, 749.1),
+    (372.4, 750.1), (378.4, 753.3), (383.4, 758.5), (389.8, 781), (392.6, 787.1), (397.2, 791.3),
+    (405.1, 793.9), (431.3, 798.6), (459.9, 804.8), (500.5, 817.9), (681.5, 878.3), (697.2, 882),
+    (712, 882), (726.2, 879.3), (736.4, 875.2), (746.1, 869.5), (755.3, 863.2), (766.8, 850.7),
+    (773.3, 840.9), (777.8, 828.8), (780.2, 815.3), (788, 729.9), (802.8, 584), (802.3, 570.9),
+    (800, 562.5), (796.3, 555.2), (790.3, 550), (779.2, 542.7), (660.8, 479.2), (564.5, 425.6),
+    (504.6, 392.7), (475.5, 376), (442.8, 353.2), (419.3, 335.4), (399.1, 317.7), (294, 228),
+    (219.4, 160.8), (61.7, 23.3), (-33.2, -59.6), (-46.1, -72.6), (-51.1, -80.9), (-52.1, -89.2),
+    (-52.1, -99.2), (-48.8, -121.1), (-47.9, -133), (-47.9, -150.2), (-49.3, -159.6), (-53, -171.6),
+    (-58.5, -185.6), (-67.7, -199.8), (-80.2, -214.3), (-94.4, -226.3), (-106, -235.1), (-111.9, -242),
+    (-116.5, -251.3), (-120.7, -268.5), (-130.4, -347.2), (-140.5, -431.1), (-218.8, -1183.5), (-222.1, -1210.5),
+    (-225.3, -1223.1), (-231.8, -1236.1), (-240.6, -1246.6), (-250.7, -1256), (-264.9, -1265.3), (-280.6, -1271),
+    (-298.6, -1274.2), (-313.8, -1273.1), (-328.1, -1270), (-344.7, -1263.7), (-360.8, -1256.4), (-372.8, -1248.1),
+    (-387.1, -1237.2), (-403.2, -1219.9), (-414.3, -1204.3), (-423.9, -1187.7), (-432.2, -1167.9), (-440, -1146),
+    (-446, -1123.5), (-448.8, -1104.3), (-452, -1075.1), (-452.5, -1045.9), (-452.9, -1018.3), (-454.3, -963.6),
+    (-455.3, -915.6), (-454.3, -863.5), (-448.4, -795.3), (-425.8, -579.6),
+]
+
+
+def _build_track(per_m: float = 2.0):
+    """Closed polyline through MONZA, resampled and arc-length parametrised to TRACK_LEN_M."""
+    pts, n = MONZA, len(MONZA)
     raw = []
-    for k in range(n):
-        th = 2 * math.pi * k / n
-        r = 1 + 0.25 * math.cos(3 * th) + 0.1 * math.sin(2 * th)
-        raw.append((r * math.cos(th), 0.7 * r * math.sin(th)))
-    seg = [math.dist(raw[k], raw[(k + 1) % n]) for k in range(n)]
-    scale = TRACK_LEN_M / sum(seg)
+    for i in range(n):
+        (ax, ay), (bx, by) = pts[i], pts[(i + 1) % n]
+        steps = max(1, round(((bx - ax) ** 2 + (by - ay) ** 2) ** 0.5 / per_m))
+        raw += [(ax + (bx - ax) * k / steps, ay + (by - ay) * k / steps) for k in range(steps)]
+    m = len(raw)
+    seg = [math.dist(raw[k], raw[(k + 1) % m]) for k in range(m)]
+    total = sum(seg)
+    scale = TRACK_LEN_M / total
     xs, ys, ss, acc = [], [], [], 0.0
-    for k in range(n):
+    for k in range(m):
         xs.append(raw[k][0] * scale)
         ys.append(raw[k][1] * scale)
-        ss.append(acc / (sum(seg)))
+        ss.append(acc / total)
         acc += seg[k]
     return ss, xs, ys
 
@@ -59,6 +91,21 @@ def _yaw_north(pct: float) -> float:
     x0, y0 = _track_pos(pct - 0.0005)
     x1, y1 = _track_pos(pct + 0.0005)
     return math.atan2(x1 - x0, y1 - y0)
+
+
+# repeats every INCIDENT_CYCLE_S from 5 min in: off-track, contact, spin (+1 then +1 more =
+# escalated), off-track. Keeps the incident alert showing up in long runs / the web demo.
+INCIDENTS = ((10, 1), (30, 4), (60, 1), (61, 1), (100, 1))
+INCIDENT_CYCLE_S = 150
+
+
+def _incidents(now: float) -> int:
+    t = now - 300
+    if t < 0:
+        return 0
+    cycles, at = divmod(t, INCIDENT_CYCLE_S)
+    per_cycle = sum(x for _, x in INCIDENTS)
+    return int(cycles) * per_cycle + sum(x for s, x in INCIDENTS if at >= s)
 
 
 DRIVERS = [
@@ -142,9 +189,9 @@ class MockSource:
             "WeekendInfo": {
                 "TrackLength": f"{TRACK_LEN_M / 1000:.2f} km",
                 "TrackID": 0,
-                "TrackDisplayName": "Mock Raceway",
-                "TrackDisplayShortName": "Mock",
-                "TrackConfigName": "mock",
+                "TrackDisplayName": "Autodromo Nazionale Monza",
+                "TrackDisplayShortName": "Monza",
+                "TrackConfigName": "Grand Prix",
             },
             "SessionInfo": {
                 "Sessions": [{"SessionNum": 0, "SessionType": "Race", "SessionLaps": "unlimited"}]
@@ -235,8 +282,7 @@ class MockSource:
             "SessionTimeRemain": max(0.0, RACE_LEN_S - now),
             "SessionLapsTotal": 32767,
             "PlayerCarIdx": PLAYER,
-            # off-track, contact, spin (+1 then +1 more = escalated), off-track
-            "PlayerCarMyIncidentCount": sum(x for at, x in ((310, 1), (330, 4), (360, 1), (361, 1), (400, 1)) if now >= at),
+            "PlayerCarMyIncidentCount": _incidents(now),
             "IsOnTrack": True,
             "OnPitRoad": False,
             "FuelLevel": self.fuel,

@@ -230,6 +230,7 @@ class Engine:
         self.player_idx = 0
         self.track_len: float | None = None
         self.track_name = ""
+        self.track_config = ""
         self.fuel_capacity: float | None = None
         self.est_lap = 100.0
         self.incident_limit: int | None = None
@@ -281,7 +282,7 @@ class Engine:
         wi = info.get("WeekendInfo") or {}
         name = wi.get("TrackDisplayShortName") or wi.get("TrackDisplayName") or ""
         config = wi.get("TrackConfigName") or ""
-        self.track_name = f"{name} · {config}" if name and config else name or config
+        self.track_name, self.track_config = name, config
         self.incident_limit = _limit((wi.get("WeekendOptions") or {}).get("IncidentLimit"))
         track_len = _track_length_m(wi.get("TrackLength"))
         if track_len != self.track_len:
@@ -462,6 +463,7 @@ class Engine:
             "type": stype,
             "race": race,
             "track": self.track_name,
+            "trackConfig": self.track_config,
             "qualify": "qualify" in stype.lower(),
             # relative -> best-lap standings
             "standings": any(k in stype.lower() for k in ("qualify", "practice")),

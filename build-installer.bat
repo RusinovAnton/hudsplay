@@ -1,5 +1,5 @@
 @echo off
-rem Builds the Windows installer: packaging\installer\racehud-setup-<version>.exe
+rem Builds the Windows installer: packaging\installer\racehud-setup.exe
 rem   1. Python backend -> packaging\dist\racehud-backend\racehud-backend.exe (PyInstaller via uv)
 rem   2. Electron overlay + backend -> NSIS installer (electron-builder)
 cd /d "%~dp0"

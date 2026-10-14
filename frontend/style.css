@@ -65,17 +65,20 @@ body.preview {
 }
 #s-pos { color: var(--c-pos); }
 #s-mode { color: var(--c-mode); }
-/* track name: wraps inside the width the other rows give the widget, never widens it */
+/* track name, and its layout on a smaller second line */
 #s-track {
   color: var(--c-track);
   font-size: 0.85em;
   line-height: 1.3;
-  white-space: normal;
-  width: 0;
-  min-width: 100%;
   margin-top: 0.2em;
 }
-#s-track:empty { display: none; }
+#s-config {
+  color: var(--c-track);
+  font-size: 0.7em;
+  line-height: 1.3;
+  opacity: 0.75;
+}
+#s-track:empty, #s-config:empty { display: none; }
 .big .tot { font-size: 0.5em; font-weight: 400; color: var(--c-muted); }
 
 /* ---------- laps: last lap + optimal */
@@ -164,6 +167,9 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 }
 @keyframes radio-pulse {
   50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .srow.talking .radio { animation: none; }
 }
 
 /* position badge */
