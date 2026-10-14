@@ -90,7 +90,14 @@ function setHtml(el, html) {
 
 const POS_FULL_PLACES = 5; // places gained/lost for full color
 
+// "Lone Qualify" -> "qualify", "Offline Testing" -> "testing", unknown -> as-is
+const SESSION_MODES = ["practice", "qualify", "warmup", "race", "testing"];
+const sessionMode = (type) =>
+  SESSION_MODES.find((m) => (type || "").toLowerCase().includes(m)) || (type || "session").toLowerCase();
+
 function renderSession(s) {
+  setText($("s-mode"), sessionMode(s.type));
+  setText($("s-track"), s.track || "");
   const total = s.lapsTotal == null ? "–" : `${s.lapsEstimated ? "~" : ""}${s.lapsTotal}`;
   setHtml($("s-lap"), `${s.lap}<span class="tot">/${total}</span>`);
   setHtml($("s-pos"), s.pos > 0 ? `${s.pos}<span class="tot">/${s.cars}</span>` : "–");
@@ -111,6 +118,25 @@ function renderClock() {
   const d = new Date();
   const p2 = (n) => String(n).padStart(2, "0");
   setHtml($("clock"), `${p2(d.getHours())}:${p2(d.getMinutes())}<span class="sec">:${p2(d.getSeconds())}</span>`);
+}
+
+const INCIDENT_FULL_X = 17; // full red at the session limit, or this many when unlimited
+
+function renderIncidents(inc) {
+  const el = $("i-count");
+  // alert keeps its last text while fading out
+  $("w-incident-alert").classList.toggle("idle", !inc.alert);
+  if (inc.alert) {
+    setText($("ia-label"), inc.alert.label);
+    setText($("ia-x"), `${inc.alert.x}x`);
+  }
+  if (inc.count == null) { setText(el, "–", ""); return; }
+  setHtml(el, `${inc.count}x` + (inc.limit ? `<span class="tot"> / ${inc.limit}</span>` : ""));
+  // 0x gray, then ever more red toward the limit
+  const k = Math.min(inc.count / (inc.limit || INCIDENT_FULL_X), 1);
+  el.style.color = inc.count > 0
+    ? `color-mix(in srgb, var(--c-bad) ${Math.round(25 + 75 * k)}%, var(--c-muted))`
+    : "var(--c-muted)";
 }
 
 function renderFuel(f) {
@@ -185,6 +211,7 @@ function reorderRows(container, ids) {
 let multiclass = false;
 
 function renderStandings(rows) {
+  setText($("st-title"), state.session?.qualify ? "// standings" : "// relative");
   const container = $("st-rows");
   const ids = rows.map((r) => String(r.id));
   for (const [id, el] of stRows) {
@@ -271,7 +298,6 @@ function buildDeltaWidgets() {
 const PROX_RANGE_S = 2.0; // proximity bar: empty at this gap, full at 0
 const CATCH_MAX_LAPS = 10; // beyond this a "catching in N laps" number is noise
 const CLOSE_GAP_S = 0.5; // below this gap the cars are together: no catch estimate
-const GAIN_FULL_S_PER_LAP = 0.3; // gain/loss rate for full / minimum intensity
 const HOLD_S_PER_LAP = 0.02; // gap change below this per lap reads as "holding"
 const STATUS_HOLD_MS = 1500; // new status must be stable this long before it shows
 const STATUS_NUM_MS = 1000; // lap count refresh interval
@@ -285,19 +311,22 @@ function renderRival(w, r, arrow) {
     return;
   }
   // car ahead "+", car behind "-". Hue is always the global ahead/behind color;
-  // gaining vs losing only changes saturation: full color when gaining, washed out
-  // toward the light text gray when losing
+  // gaining vs losing right now only changes saturation: full color when gaining,
+  // washed out toward the light text gray when losing
   const sign = ahead ? "+" : "-";
-  const gain = r.closing == null ? 0 : (ahead ? r.closing : -r.closing) / GAIN_FULL_S_PER_LAP;
+  const gapAbs = Math.abs(r.gap);
+  const gain = (r.gain ?? 0) / BAR_RATE_FULL.rival;
   const k = (Math.max(-1, Math.min(1, gain)) + 1) / 2; // 0 = losing fast, 1 = gaining fast
-  setText(w.v, r.laps ? `${sign}${r.laps}L` : `${sign}${r.gap.toFixed(2)}`, "");
+  setText(w.v, `${sign}${gapAbs.toFixed(2)}`, "");
   const base = ahead ? "var(--c-ahead)" : "var(--c-behind)";
   const tint = `color-mix(in srgb, ${base} ${Math.round(10 + 90 * k)}%, var(--c-fg))`;
   w.v.style.color = tint;
-  setText(w.titleEl, `// ${arrow} #${r.num} ${r.name}`);
+  // lapped / lapping car, or another class: tag it like the relative does
+  const tag = r.lapRel ? ` ${r.lapRel > 0 ? "+" : ""}${r.lapRel}L` : multiclass && r.cls ? ` ${r.cls}` : "";
+  setText(w.titleEl, `// ${arrow} #${r.num} ${r.name}${tag}`);
 
   // proximity: the closer the car, the fuller the bar
-  const prox = r.laps ? 0 : Math.max(0, 1 - r.gap / PROX_RANGE_S);
+  const prox = Math.min(1, Math.max(0, 1 - gapAbs / PROX_RANGE_S));
   w.fill.style.left = "0";
   w.fill.style.width = `${prox * 100}%`;
   w.fill.style.opacity = "1";
@@ -307,7 +336,7 @@ function renderRival(w, r, arrow) {
   // status line, debounced: a new status must hold STATUS_HOLD_MS before it shows,
   // the lap count refreshes at most every STATUS_NUM_MS
   let kind = "", laps = null;
-  if (!r.laps && r.gap < CLOSE_GAP_S) {
+  if (gapAbs < CLOSE_GAP_S) {
     kind = "close"; // already together: a catch estimate means nothing here
   } else if (r.catchAfterFlag) {
     kind = "flag"; // closing, but the race ends first
@@ -318,7 +347,7 @@ function renderRival(w, r, arrow) {
     laps = Math.round(r.catchLaps * 2) / 2;
   } else if (r.catchLaps != null) {
     kind = "slow"; // too far out to be a useful number
-  } else if (r.closing != null && !r.laps) {
+  } else if (r.closing != null) {
     kind = Math.abs(r.closing) < HOLD_S_PER_LAP ? "hold" : "away";
   }
   const now = performance.now();
@@ -345,21 +374,29 @@ function renderRival(w, r, arrow) {
   setText(w.catchEl, text, "");
 }
 
+const RIVAL_HIDE_DEFAULT_S = 10; // ▲/▼ widgets hide beyond this gap (per widget in edit mode)
+
 function renderDelta(d) {
+  // no car there, or too far away to matter
+  const gone = (w, r) => !r || Math.abs(r.gap) > (parseFloat(w.el.dataset.hide) || RIVAL_HIDE_DEFAULT_S);
   for (const w of DELTA_WIDGETS) {
     if (w.kind === "best") {
+      w.el.classList.toggle("idle", d.best == null);
       if (d.ref) setText(w.el.querySelector(".title"), `// Δ ${d.ref}`);
       setText(w.v, d.best == null ? "–" : fmtSigned(d.best), d.best == null ? "" : d.best < 0 ? "good" : "bad");
       w.bar.set(d.best);
     } else if (w.kind === "ahead") {
+      w.el.classList.toggle("idle", gone(w, d.ahead));
       renderRival(w, d.ahead, UP);
     } else if (w.kind === "behind") {
+      w.el.classList.toggle("idle", gone(w, d.behind));
       renderRival(w, d.behind, DOWN);
     } else {
-      // closest by time gap; a car laps away never wins over one on the same lap
-      const key = (r) => (r ? (r.laps ? 1e6 : 0) + r.gap : Infinity);
+      // closest on track by time gap
+      const key = (r) => (r ? Math.abs(r.gap) : Infinity);
       const ahead = key(d.ahead) <= key(d.behind);
       const r = ahead ? d.ahead : d.behind;
+      w.el.classList.toggle("idle", gone(w, r));
       w.el.classList.toggle("ahead", !!r && ahead);
       w.el.classList.toggle("behind", !!r && !ahead);
       renderRival(w, r, ahead ? UP : DOWN);
@@ -388,6 +425,9 @@ function refreshColors() {
 }
 
 const RADAR_DEFAULT_RANGE = 20; // metres
+// radar shows when a car is this close bumper to bumper (or alongside); per widget in edit mode
+const RADAR_SHOW_AHEAD_M = 2;
+const RADAR_SHOW_BEHIND_M = 3;
 const RADAR_DIM = 0.55; // opacity of in-line (not alongside) cars
 const RADAR_SLIDE_MS = 120; // sideways easing time constant
 const radarAnim = { t: 0, lat: new Map() }; // car id -> current sideways position
@@ -405,14 +445,18 @@ function renderRadar(r) {
 
   const c = size / 2;
   const rad = c - 2;
-  // per-widget view range (edit mode -> select radar); radar hides when no car is inside it
+  // per-widget settings (edit mode -> select radar): view range = what's drawn,
+  // show ahead/behind = bumper gap that makes the radar appear
   const w = $("w-radar");
   const range = parseFloat(w.dataset.range) || RADAR_DEFAULT_RANGE;
   const ppm = rad / range; // pixels per metre
   const sideAlert = { left: "L", left2: "L", right: "R", right2: "R", both: "LR" }[r.spotter] || "";
   const visibleCars = r.cars.filter((x) => Math.abs(x.d) <= range);
+  const showAhead = parseFloat(w.dataset.sa ?? RADAR_SHOW_AHEAD_M);
+  const showBehind = parseFloat(w.dataset.sb ?? RADAR_SHOW_BEHIND_M);
+  const close = r.cars.some((x) => Math.abs(x.d) - (r.carLen || 0) <= (x.d >= 0 ? showAhead : showBehind));
 
-  w.classList.toggle("idle", !sideAlert && visibleCars.length === 0);
+  w.classList.toggle("idle", !sideAlert && !close);
 
   // disc
   ctx.save();
@@ -621,12 +665,23 @@ function strokePaint(o, sm, S, at, visible) {
     }
 }
 
+function placeholderShape(lengthM) {
+  if (placeholderShape.len === lengthM) return placeholderShape.pts;
+  const r = lengthM / (2 * Math.PI), n = 360;
+  // start/finish at the bottom, driving counter-clockwise
+  placeholderShape.pts = Array.from({ length: n }, (_, i) => {
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+    return [r * Math.cos(a), r * Math.sin(a)];
+  });
+  placeholderShape.len = lengthM;
+  return placeholderShape.pts;
+}
+
 function renderMap(m) {
   if (m.points !== undefined && (m.version !== mapCache.version || !mapCache.points)) {
     mapCache.version = m.version;
     mapCache.points = m.points;
   }
-  const pts = mapCache.points;
   const canvas = $("map");
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.clientWidth, H = canvas.clientHeight;
@@ -638,14 +693,12 @@ function renderMap(m) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
-  const title = $("map-title");
-  if (!pts) {
-    setText(title, m.recording != null
-      ? `// map · recording ${Math.round(m.recording * 100)}%`
-      : "// map · drive 1 clean lap to record");
-    return;
-  }
-  setText(title, "// map");
+  // no recorded shape yet: cars and paint go on a circle of the track's length
+  const recorded = !!mapCache.points;
+  const pts = mapCache.points || placeholderShape((m.segLen || 10) * ((m.paint || []).length || 400));
+  setText($("map-title"), recorded ? "// map"
+    : m.recording != null ? `// map · recording ${Math.round(m.recording * 100)}%`
+    : "// map · drive 1 clean lap to record");
 
   // world position (metres, y up) at a lap %, mirror applied
   const N = pts.length;
@@ -659,7 +712,7 @@ function renderMap(m) {
   // world -> screen: whole-track overview, or follow mode (me centred low, heading up)
   const w = $("w-map");
   const me = (m.cars || []).find((c) => c[1] === 1);
-  const follow = w.dataset.follow === "1" && !!me;
+  const follow = w.dataset.follow === "1" && !!me && recorded;
   let toS;
   if (follow) {
     const range = parseFloat(w.dataset.frange) || MAP_FOLLOW_DEFAULT_M;
@@ -748,12 +801,14 @@ function connect() {
 function frame() {
   const online = !!(state && state.connected);
   document.body.classList.toggle("offline", !online);
+  document.body.classList.toggle("qualify", !!(online && state.session?.qualify));
   if (online) {
     // each widget isolated: one failing render must not blank the others
     for (const [render, data] of [
       [renderSession, state.session],
       [(rows) => { multiclass = !!state.session?.multiclass; renderStandings(rows); }, state.relative],
       [renderFuel, state.fuel],
+      [renderIncidents, state.incidents],
       [renderDelta, state.delta],
       [renderRadar, state.radar],
       [renderMap, state.map],
@@ -775,14 +830,16 @@ function frame() {
 const DEFAULT_LAYOUT = {
   session: { x: 1.5, y: 3 },
   clock: { x: 10, y: 3 },
-  relative: { x: 1.5, y: 15 },
-  fuel: { x: 1.5, y: 35 },
+  relative: { x: 1.5, y: 21 },
+  fuel: { x: 1.5, y: 42 },
   "delta-best": { x: 40, y: 3 },
   "delta-ahead": { x: 40, y: 10 },
   "delta-behind": { x: 40, y: 18 },
   "delta-closest": { x: 40, y: 26 },
   radar: { x: 44, y: 55 },
   map: { x: 78, y: 3 },
+  incidents: { x: 1.5, y: 63 },
+  "incident-alert": { x: 44, y: 40 },
 };
 
 function applyVisibility() {
@@ -805,7 +862,7 @@ function applyWidgetProps(el, p) {
   // widget-specific settings (radar range, map follow...) live on dataset
   for (const [key, , , , , , , only] of WIDGET_SLIDERS) {
     if (!only) continue;
-    if (only === el.dataset.id && p[key] != null) el.dataset[key] = p[key];
+    if ([].concat(only).includes(el.dataset.id) && p[key] != null) el.dataset[key] = p[key];
     else delete el.dataset[key];
   }
 }
@@ -845,15 +902,18 @@ function selectWidget(el) {
 }
 
 const WIDGET_SLIDERS = [
-  // key, label, min, max, step, fallback, unit ("x" | "%" | "m" | "check"), only for widget id
+  // key, label, min, max, step, fallback, unit ("x" | "%" | "m" | "s" | "check"), only for widget id(s)
   ["s", "size", 0.5, 3, 0.05, () => 1, "x"],
   ["bg", "background", 0, 100, 1, () => parseFloat(getComputedStyle(root).getPropertyValue("--bg-opacity")), "%"],
   ["op", "opacity", 10, 100, 1, () => 100, "%"],
   ["range", "view range", 5, 50, 1, () => RADAR_DEFAULT_RANGE, "m", "radar"],
+  ["sa", "show ahead", 0, 20, 1, () => RADAR_SHOW_AHEAD_M, "m", "radar"],
+  ["sb", "show behind", 0, 20, 1, () => RADAR_SHOW_BEHIND_M, "m", "radar"],
   ["follow", "follow me", 0, 1, 1, () => 0, "check", "map"],
   ["frange", "follow range", 100, 1500, 25, () => MAP_FOLLOW_DEFAULT_M, "m", "map"],
+  ["hide", "hide beyond", 1, 60, 1, () => RIVAL_HIDE_DEFAULT_S, "s", ["delta-ahead", "delta-behind", "delta-closest"]],
 ];
-const slidersFor = (el) => WIDGET_SLIDERS.filter((x) => !x[7] || x[7] === el.dataset.id);
+const slidersFor = (el) => WIDGET_SLIDERS.filter((x) => !x[7] || [].concat(x[7]).includes(el.dataset.id));
 
 function syncSelectedPanel() {
   const box = $("selected-rows");
@@ -894,6 +954,7 @@ function syncSelectedPanel() {
       unit === "check" ? ""
       : unit === "x" ? `${Math.round(v * 100)}%`
       : unit === "m" ? `${Math.round(v)} m`
+      : unit === "s" ? `${Math.round(v)} s`
       : `${Math.round(v)}%${key === "bg" && p.bg == null ? " (global)" : ""}`;
   }
 }
@@ -947,7 +1008,10 @@ const THEME_VARS = [
   ["--c-bad", "loss / bad"],
   ["--c-warn", "warning"],
   ["--c-fuel", "fuel"],
+  ["--c-incidents", "incident alert points"],
   ["--c-clock", "clock"],
+  ["--c-mode", "session mode"],
+  ["--c-track", "track name"],
   ["--c-radio", "radio (talking)"],
   ["--c-label", "labels"],
   ["--c-comment", "titles"],

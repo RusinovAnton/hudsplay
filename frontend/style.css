@@ -64,7 +64,31 @@ body.preview {
   line-height: 1.1;
 }
 #s-pos { color: var(--c-pos); }
+#s-mode { color: var(--c-mode); }
+/* track name: wraps inside the width the other rows give the widget, never widens it */
+#s-track {
+  color: var(--c-track);
+  font-size: 0.85em;
+  line-height: 1.3;
+  white-space: normal;
+  width: 0;
+  min-width: 100%;
+  margin-top: 0.2em;
+}
+#s-track:empty { display: none; }
 .big .tot { font-size: 0.5em; font-weight: 400; color: var(--c-muted); }
+
+/* ---------- incidents */
+/* count color is set in app.js: gray at 0x, more red with every incident */
+/* incident alert: pops up on an incident, fades out (always visible in edit mode) */
+#w-incident-alert {
+  font-size: 1.8em;
+  font-weight: 500;
+  transition: opacity 0.6s;
+}
+#w-incident-alert.idle { opacity: 0; }
+body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
+#ia-x { color: var(--c-incidents); }
 
 /* ---------- fuel */
 #w-fuel .v { color: var(--c-fuel); }
@@ -254,6 +278,12 @@ body.preview {
   height: calc(15em);
 }
 #w-radar.idle { opacity: 0; }
+/* delta widgets: hidden while there's nothing to show (no delta / no car there) */
+.delta.idle { opacity: 0; }
+body.edit .delta.idle { opacity: var(--w-opacity, 1); }
+/* qualifying: nobody to race, radar is noise (still placeable in edit mode);
+   the relative turns into best-lap standings */
+body.qualify:not(.edit) #w-radar { display: none; }
 
 /* ---------- offline / edit */
 body.offline:not(.edit) .widget { opacity: 0; }
@@ -265,7 +295,8 @@ body.offline:not(.edit) .widget { opacity: 0; }
   padding: 0.2em 0.8em;
   border-radius: 4px;
   background: color-mix(in srgb, var(--c-bg) var(--bg-opacity), transparent);
-  color: var(--c-warn);
+  color: var(--c-comment);
+  font-style: italic;
   display: none;
 }
 body.offline #status { display: block; }

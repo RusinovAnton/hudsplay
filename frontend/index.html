@@ -10,15 +10,16 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="offline">
-  <div id="status">waiting for iRacing…</div>
+  <div id="status">// racehud - ON</div>
 
   <div class="widget" id="w-session" data-id="session">
-    <div class="title">// session</div>
+    <div class="title">// <span id="s-mode">session</span></div>
     <div class="big-row">
       <div><div class="k">lap</div><div class="big" id="s-lap">–</div></div>
       <div><div class="k">pos</div><div class="big" id="s-pos">–</div></div>
     </div>
     <div class="kv"><span class="k">left</span><span class="v" id="s-time">–</span></div>
+    <div id="s-track"></div>
   </div>
 
   <div class="widget" id="w-clock" data-id="clock">
@@ -27,7 +28,7 @@
   </div>
 
   <div class="widget" id="w-relative" data-id="relative">
-    <div class="title">// relative</div>
+    <div class="title" id="st-title">// relative</div>
     <div id="st-rows"></div>
   </div>
 
@@ -38,6 +39,15 @@
     <div class="kv"><span class="k">/lap</span><span class="v" id="f-per">–</span></div>
     <div class="kv"><span class="k">laps</span><span class="v" id="f-laps">–</span></div>
     <div class="kv"><span class="k">need</span><span class="v" id="f-need">–</span></div>
+  </div>
+
+  <div class="widget" id="w-incidents" data-id="incidents">
+    <div class="title">// incidents</div>
+    <div class="big" id="i-count">–</div>
+  </div>
+
+  <div class="widget" id="w-incident-alert" data-id="incident-alert">
+    <span id="ia-label">contact</span> <span id="ia-x">4x</span>
   </div>
 
   <!-- delta widgets (best / ahead / behind / closest) are built by app.js -->

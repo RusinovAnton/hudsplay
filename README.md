@@ -11,7 +11,26 @@ estimate for the car ahead/behind), radar (cars alongside, three-wide warning),
 track map (recorded on your first clean lap, painted green/red by delta, overview
 or follow mode).
 
-## Install on Windows (the iRacing PC)
+## Installer (recommended)
+
+Run **`racehud-setup-<version>.exe`**. It installs racehud for your user (no admin
+needed), adds desktop + Start menu shortcuts, and starts it. Windows SmartScreen may
+warn because the installer isn't code-signed: "More info" → "Run anyway".
+
+- Runs in the **system tray** (gauge icon): edit mode, reload, start with Windows
+  (on by default), open settings folder, quit.
+- Settings (`config.toml`), recorded track maps and the log are in
+  `%APPDATA%\racehud\data` (tray → "Open settings folder"). Layout and colors from
+  edit mode are kept in `%APPDATA%\racehud`. Uninstalling keeps both.
+- In iRacing: Options → Graphics → **Borderless windowed**, otherwise the overlay is hidden.
+
+**Build the installer** (needs the dev setup below): double-click
+**`build-installer.bat`** → `packaging\installer\racehud-setup-<version>.exe`. It
+bundles the Python backend with PyInstaller (`racehud-backend.exe`) and the
+overlay with electron-builder (NSIS). Bump `version` in `electron/package.json` for
+a new release. The icon comes from `uv run python packaging/make_icon.py`.
+
+## Dev setup on Windows (the iRacing PC)
 
 1. Open **PowerShell** and install [uv](https://docs.astral.sh/uv/) (it also downloads Python):
 
@@ -66,7 +85,7 @@ that it's saved in `maps/`.
 - Layout, sizes, opacity, colors: edit mode (saved per machine). "copy css" →
   paste into `frontend/theme.css` to make colors the defaults. Palette buttons
   include color-blind-safe sets.
-- Behaviour: create `config.toml` in the repo root:
+- Behaviour: create `config.toml` in the repo root (installed: `%APPDATA%\racehud\data`):
 
 ```toml
 [racehud]
@@ -75,6 +94,7 @@ standings_class_only = true
 name_format = "short"   # or "full"
 radar_range_m = 50   # max distance sent; view range is set in edit mode
 delta_reference = "session_best"   # best | optimal | session_optimal | session_last
+map_paint_reference = "session_last"   # same choices, for the map paint
 map_mirror = false                 # flip a mirrored track map
 ```
 

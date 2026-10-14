@@ -11,6 +11,7 @@ TELEMETRY_VARS = (
     "SessionTimeRemain",
     "SessionLapsTotal",
     "PlayerCarIdx",
+    "PlayerCarMyIncidentCount",
     "IsOnTrack",
     "OnPitRoad",
     "FuelLevel",
@@ -46,7 +47,7 @@ class IRacingSource:
         self.ir = irsdk.IRSDK()
         self.connected = False
         self.info: dict = {}
-        self._info_updates: dict[str, int] = {}
+        self._info_update = -1
         self._next_attempt = 0.0
 
     def _check_connection(self) -> bool:
@@ -54,7 +55,7 @@ class IRacingSource:
         if self.connected and not (ir.is_initialized and ir.is_connected):
             ir.shutdown()
             self.connected = False
-            self._info_updates.clear()
+            self._info_update = -1
         if not self.connected and time.monotonic() >= self._next_attempt:
             self._next_attempt = time.monotonic() + 1.0
             self.connected = bool(ir.startup()) and ir.is_initialized and ir.is_connected
@@ -67,14 +68,14 @@ class IRacingSource:
         ir.freeze_var_buffer_latest()
         telemetry = {name: ir[name] for name in TELEMETRY_VARS}
 
-        changed = False
-        for key in INFO_KEYS:
-            update = ir.get_session_info_update_by_key(key)
-            if update != self._info_updates.get(key):
-                self._info_updates[key] = update
-                changed = True
-        if changed:
-            self.info = {key: ir[key] or {} for key in INFO_KEYS}
+        # Header counter, bumped by iRacing whenever the session info YAML changes.
+        # (get_session_info_update_by_key returns None until ir[key] was read once.)
+        update = ir.session_info_update
+        if update != self._info_update:
+            info = {key: ir[key] or {} for key in INFO_KEYS}
+            if info["DriverInfo"]:
+                self._info_update = update
+                self.info = info
         return telemetry, self.info
 
 

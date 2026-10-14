@@ -55,10 +55,10 @@ def _track_pos(pct: float) -> tuple[float, float]:
 
 
 def _yaw_north(pct: float) -> float:
-    """Heading from north, counter-clockwise positive (same convention as TrackMap)."""
+    """Compass heading from north, clockwise positive (like iRacing, see TrackMap)."""
     x0, y0 = _track_pos(pct - 0.0005)
     x1, y1 = _track_pos(pct + 0.0005)
-    return math.atan2(-(x1 - x0), y1 - y0)
+    return math.atan2(x1 - x0, y1 - y0)
 
 
 DRIVERS = [
@@ -134,6 +134,8 @@ class MockSource:
             "WeekendInfo": {
                 "TrackLength": f"{TRACK_LEN_M / 1000:.2f} km",
                 "TrackID": 0,
+                "TrackDisplayName": "Mock Raceway",
+                "TrackDisplayShortName": "Mock",
                 "TrackConfigName": "mock",
             },
             "SessionInfo": {
@@ -211,7 +213,10 @@ class MockSource:
         lap_rng = random.Random(math.floor(p))
         # corner-by-corner: slow drift + medium + fast wiggles, all 0 at the line
         w = 2 * math.pi * pct_p
-        delta = sum(lap_rng.uniform(-amp, amp) * math.sin(k * w) for k, amp in ((1, 0.25), (3, 0.12), (7, 0.06), (13, 0.035), (23, 0.02)))
+        shape = ((1, 0.25), (3, 0.12), (7, 0.06), (13, 0.035), (23, 0.02))
+        delta = sum(lap_rng.uniform(-amp, amp) * math.sin(k * w) for k, amp in shape)
+        last_rng = random.Random(math.floor(p) + 10_000)
+        delta_last = sum(last_rng.uniform(-amp, amp) * math.sin(k * w) for k, amp in shape)
         speed = (p - old[PLAYER]) * TRACK_LEN_M / dt if dt > 0 else 0.0
         telemetry = {
             "Speed": speed,
@@ -222,11 +227,15 @@ class MockSource:
             "SessionTimeRemain": max(0.0, RACE_LEN_S - now),
             "SessionLapsTotal": 32767,
             "PlayerCarIdx": PLAYER,
+            # off-track, contact, spin (+1 then +1 more = escalated), off-track
+            "PlayerCarMyIncidentCount": sum(x for at, x in ((310, 1), (330, 4), (360, 1), (361, 1), (400, 1)) if now >= at),
             "IsOnTrack": True,
             "OnPitRoad": False,
             "FuelLevel": self.fuel,
             "LapDeltaToSessionBestLap": delta,
             "LapDeltaToSessionBestLap_OK": True,
+            "LapDeltaToSessionLastlLap": delta_last,
+            "LapDeltaToSessionLastlLap_OK": p >= 1,
             "CarLeftRight": lr,
             "CarIdxLapCompleted": pad([math.floor(x) for x in self.prog], -1),
             "CarIdxLapDistPct": pad([x % 1 for x in self.prog], -1.0),

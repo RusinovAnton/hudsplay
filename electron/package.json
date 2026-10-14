@@ -3,11 +3,49 @@
   "private": true,
   "version": "0.1.0",
   "productName": "racehud",
+  "description": "racehud iRacing HUD overlay",
+  "author": "RusinovAnton",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.racehud.app",
+    "productName": "racehud",
+    "directories": {
+      "output": "../packaging/installer",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "assets/icon.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "../packaging/dist/racehud-backend",
+        "to": "backend"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "racehud",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "assets/installer.nsh",
+      "artifactName": "racehud-setup-${version}.exe"
+    }
   },
   "devDependencies": {
-    "electron": "^44.7.0"
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
   }
 }

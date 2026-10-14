@@ -6,7 +6,7 @@ import sys
 
 from aiohttp import web
 
-from .config import load_config
+from .config import DATA, FROZEN, load_config
 from .server import build_app
 
 
@@ -16,7 +16,12 @@ def main() -> None:
     parser.add_argument("--dump", action="store_true", help="dump iRacing session info + telemetry to ./dump")
     parser.add_argument("--port", type=int, help="override config port")
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    fmt = "%(asctime)s %(levelname)s %(message)s"
+    if FROZEN:  # no console in the installed build: log to %APPDATA%\racehud\data\racehud.log
+        DATA.mkdir(parents=True, exist_ok=True)
+        logging.basicConfig(level=logging.INFO, format=fmt, filename=DATA / "racehud.log", filemode="w")
+    else:
+        logging.basicConfig(level=logging.INFO, format=fmt)
 
     if args.dump:
         from .sources.iracing import dump

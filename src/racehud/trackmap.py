@@ -12,9 +12,9 @@ import logging
 import math
 import re
 
-from .config import ROOT
+from .config import DATA
 
-MAPS_DIR = ROOT / "maps"
+MAPS_DIR = DATA / "maps"
 MAP_POINTS = 1000  # resampled shape, evenly spaced in lap %
 PAINT_STEP_M = 10.0  # delta paint resolution along the track
 log = logging.getLogger("racehud")
@@ -76,8 +76,8 @@ class TrackMap:
         if dt > 0.5:  # paused / stutter: shape would be wrong
             rec["clean"] = False
             return
-        # YawNorth: heading from north, counter-clockwise positive (TODO(windows): verify, see map_mirror)
-        rec["x"] += -math.sin(yaw) * speed * dt
+        # YawNorth: compass heading, clockwise positive (verified on Navarra: ccw drew it mirrored)
+        rec["x"] += math.sin(yaw) * speed * dt
         rec["y"] += math.cos(yaw) * speed * dt
         rec["samples"].append((pct, rec["x"], rec["y"]))
 

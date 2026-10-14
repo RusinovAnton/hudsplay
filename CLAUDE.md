@@ -21,6 +21,16 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
   (bright while |delta| grows, faded while it shrinks).
 - Python is managed by uv only (`uv run`, `uv sync`); never system Python or `python -m venv`.
 
+## Packaging
+
+`build-installer.bat` → PyInstaller `racehud-backend.exe` (entry `packaging/backend.py`,
+frontend bundled as data) + electron-builder NSIS installer (`electron/package.json`
+"build", `electron/assets/installer.nsh`). Installed Electron spawns/kills the backend
+itself and shows a tray icon; dev (`start.bat`) is unchanged. Paths: `config.ROOT` =
+read-only app files, `config.DATA` = user files (repo root in dev,
+`%APPDATA%\racehud\data` when frozen). `%APPDATA%\racehud` is Electron's profile
+(layout/colors in localStorage). Don't write user files under ROOT.
+
 ## Rules
 
 - All derived logic lives in `src/racehud/engine.py`. Sources only read raw
@@ -52,13 +62,18 @@ radio icon from RadioTransmitCarIdx.
 
 Edit mode: click selects a widget -> panel sliders for its size, card background
 opacity and whole-widget opacity (per widget, saved with position in localStorage).
-Drag = move, mouse wheel = resize. Radar also has "view range" in metres: it shows only
-while a car is inside that range or alongside.
+Drag = move, mouse wheel = resize. Radar also has "view range" in metres (what's drawn)
+and "show ahead" / "show behind" (bumper gap, default 2 m / 3 m): it shows only while a
+car is that close or alongside.
 Relative rows slide when order changes. Radar glow flashes at ~6 Hz when three wide.
 
-Relative widget = cars nearest on track (any class), first column = race position,
-lap-up/lap-down cars colored. The ▲/▼ delta widgets use race-position rivals
-(same class), not track neighbours.
+Relative widget = cars nearest on track (any class), first column = race position
+(ranked live by track progress while racing; CarIdxPosition only updates at timing
+lines), lap-up/lap-down cars colored. The ▲/▼ delta widgets = nearest car ahead /
+behind on track (any class, any lap, same gap timing as the relative; cars on pit
+road skipped unless I'm on it), tagged +1L/-1L or class. Hidden in qualifying.
+In qualifying the relative becomes "standings": cars with a time by best lap, window
+around me, gap = their best - mine. Radar hidden in qualifying.
 
 **Not yet verified against real iRacing.** First Windows session checklist:
 
@@ -70,9 +85,8 @@ lap-up/lap-down cars colored. The ▲/▼ delta widgets use race-position rivals
 2. `start.bat`, iRacing in borderless windowed mode. Check transparency, click-through,
    always-on-top, and Ctrl+Shift+O edit mode.
 3. Confirm ~60 Hz updates (Windows timer resolution is raised via `timeBeginPeriod(1)` in `__main__.py`).
-4. Track map: drive one clean lap, check `maps/*.json` appears and the shape is not
-   mirrored (YawNorth sign convention is a guess). If mirrored: `map_mirror = true`
-   in config.toml, or better fix the sign in `TrackMap.update`.
+4. Track map: drive one clean lap, check `maps/*.json` appears. YawNorth sign verified
+   2026-10-14 (compass heading, clockwise positive; Navarra was mirrored before the fix).
 5. Radar in a real pack: side assignment comes from `CarLeftRight` and the nearest
    overlapping cars. The lateral distance itself isn't in the SDK.
 
