@@ -183,10 +183,10 @@ function standingsRow() {
   const row = document.createElement("div");
   row.className = "srow";
   row.innerHTML =
-    '<span class="pos"></span><span class="num"></span><img class="flag" alt="">' +
+    '<span class="pos"></span><span class="num"></span><span class="ir"></span><img class="flag" alt="">' +
     `<span class="name"></span>${RADIO_ICON}<span class="tag"></span><span class="best"></span><span class="gap"></span>`;
-  const [pos, num, flag, name, radio, tag, best, gap] = row.children;
-  return { row, pos, num, flag, name, radio, tag, best, gap };
+  const [pos, num, ir, flag, name, radio, tag, best, gap] = row.children;
+  return { row, pos, num, flag, name, radio, tag, ir, best, gap };
 }
 
 // rows keep their element per car; when the order changes they slide (FLIP)
@@ -260,6 +260,7 @@ function renderStandings(rows) {
       el.flag.classList.toggle("on", !!src);
     }
     setText(el.name, r.name);
+    setText(el.ir, r.ir ? `${(r.ir / 1000).toFixed(1)}k` : "");
     setText(el.best, fmtLap(r.best), r.bestIsClassBest ? "class-best" : "");
     let gap = "", cls = "";
     if (!r.isMe && r.gap != null) {
@@ -481,22 +482,28 @@ function renderRadar(r) {
   const threeWide = r.spotter === "both" || r.spotter === "left2" || r.spotter === "right2";
   const flash = threeWide ? (Math.floor(performance.now() / 85) % 2 ? 1 : 0.15) : 1;
 
-  // side warning glow (ACC style): solid at the edge, fading toward the centre
+  // side warning glow (ACC style): brightest at the rim beside me, fading toward the
+  // centre and toward ahead/behind (radial, so no hard line down the middle)
+  const [dr, dg, db] = hexRgb(colors["--c-radar-danger"]);
+  const glow = (a) => `rgba(${dr},${dg},${db},${a})`;
   for (const side of sideAlert) {
     const x0 = side === "L" ? c - rad : c + rad;
-    const g = ctx.createLinearGradient(x0, 0, c, 0);
-    g.addColorStop(0, colors["--c-radar-danger"]);
-    g.addColorStop(0.35, colors["--c-radar-danger"] + "b0");
-    g.addColorStop(1, colors["--c-radar-danger"] + "00");
+    const g = ctx.createRadialGradient(x0, c, 0, x0, c, rad); // zero by the centre: no seam
+    g.addColorStop(0, glow(1));
+    g.addColorStop(0.35, glow(0.6));
+    g.addColorStop(1, glow(0));
     ctx.globalAlpha = 0.9 * flash;
     ctx.fillStyle = g;
     ctx.fillRect(side === "L" ? c - rad : c, c - rad, rad, rad * 2);
-    ctx.globalAlpha = 1;
-    // bright rim on the occupied half
+    // bright rim on the occupied side, fading out toward 12 and 6 o'clock
+    const rim = ctx.createLinearGradient(0, c - rad, 0, c + rad);
+    rim.addColorStop(0, glow(0));
+    rim.addColorStop(0.5, glow(1));
+    rim.addColorStop(1, glow(0));
     ctx.beginPath();
     const a0 = side === "L" ? Math.PI * 0.5 : -Math.PI * 0.5;
     ctx.arc(c, c, rad - 2, a0, a0 + Math.PI);
-    ctx.strokeStyle = colors["--c-radar-danger"];
+    ctx.strokeStyle = rim;
     ctx.lineWidth = 4;
     ctx.globalAlpha = flash;
     ctx.stroke();
@@ -943,6 +950,43 @@ const WIDGET_SLIDERS = [
 ];
 const slidersFor = (el) => WIDGET_SLIDERS.filter((x) => !x[7] || [].concat(x[7]).includes(el.dataset.id));
 
+// edit panel: drag by its header (position saved), sections collapsed until opened;
+// selecting a widget opens its settings
+const PANEL_KEY = "overlay.editpanel.v1";
+
+function placePanel(x, y) {
+  const p = $("edit-panel");
+  const r = p.getBoundingClientRect();
+  x = Math.min(Math.max(0, x), innerWidth - Math.min(r.width, innerWidth));
+  y = Math.min(Math.max(0, y), innerHeight - 40); // keep the header reachable
+  Object.assign(p.style, { left: `${x}px`, top: `${y}px`, right: "auto" });
+  return { x, y };
+}
+
+function enablePanelDrag() {
+  const head = document.querySelector("#edit-panel .panel-head");
+  let drag = null;
+  head.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return;
+    const r = $("edit-panel").getBoundingClientRect();
+    drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    head.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  head.addEventListener("pointermove", (e) => {
+    if (drag) drag.pos = placePanel(e.clientX - drag.dx, e.clientY - drag.dy);
+  });
+  head.addEventListener("pointerup", () => {
+    if (drag?.pos) save(PANEL_KEY, drag.pos);
+    drag = null;
+  });
+}
+
+function restorePanel() {
+  const pos = load(PANEL_KEY);
+  if (pos.x != null) placePanel(pos.x, pos.y);
+}
+
 function syncSelectedPanel() {
   const box = $("selected-rows");
   if (!selected) {
@@ -951,6 +995,7 @@ function syncSelectedPanel() {
     return;
   }
   $("selected-name").textContent = selected.dataset.id;
+  $("sec-selected").open = true;
   const p = widgetProps(selected);
   if (box.dataset.for !== selected.dataset.id) {
     box.dataset.for = selected.dataset.id;
@@ -1041,6 +1086,7 @@ const THEME_VARS = [
   ["--c-clock", "clock"],
   ["--c-mode", "session mode"],
   ["--c-track", "track name"],
+  ["--c-irating", "iRating"],
   ["--c-last-lap", "last lap"],
   ["--c-optimal-lap", "optimal lap"],
   ["--c-radio", "radio (talking)"],
@@ -1153,7 +1199,7 @@ function themeCss() {
 
 function setEditMode(on) {
   document.body.classList.toggle("edit", on);
-  if (on) { buildEditPanel(); syncSelectedPanel(); }
+  if (on) { buildEditPanel(); syncSelectedPanel(); restorePanel(); }
   else selectWidget(null);
 }
 
@@ -1197,6 +1243,7 @@ applyLayout();
 applyTheme();
 buildPaletteButtons();
 enableDrag();
+enablePanelDrag();
 connect();
 requestAnimationFrame(frame);
 document.fonts?.ready.then(refreshColors);

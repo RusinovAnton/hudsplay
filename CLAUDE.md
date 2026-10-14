@@ -58,7 +58,8 @@ Session "pos" is colored vs grid position (recorded at SessionState 3/4): green
 gained, red lost, stronger with more places.
 
 Relative: position badge (class color in multiclass), class tag or +1L/-1L tag,
-radio icon from RadioTransmitCarIdx.
+radio icon from RadioTransmitCarIdx, iRating as "1.2k" (DriverInfo IRating; blank when
+0/1, i.e. offline/AI).
 
 Edit mode: click selects a widget -> panel sliders for its size, card background
 opacity and whole-widget opacity (per widget, saved with position in localStorage).

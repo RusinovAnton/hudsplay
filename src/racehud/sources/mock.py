@@ -125,6 +125,7 @@ class MockSource:
                         "CarClassShortName": "GT4" if i in GT4 else "GT3",
                         "CarClassColor": 0x53FF77 if i in GT4 else 0xFFDA59,
                         "FlairName": country,
+                        "IRating": 900 + (i * 733) % 3600,
                         "CarIsPaceCar": 0,
                         "IsSpectator": 0,
                     }

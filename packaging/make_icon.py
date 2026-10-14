@@ -1,7 +1,8 @@
 """Draws the racehud icon (no image libraries needed) -> electron/assets/icon.ico + icon.png.
 
-Dark rounded square (VS Code Dark+ bg), gold gauge ring open at the bottom right,
-needle dot. Rendered per size with 4x4 supersampling so the tray (16 px) stays crisp.
+"//R" on a dark rounded square (VS Code Dark+): "//" in the comment green of the
+`// title` headers, "R" in the gold --c-me. Letters are stroked line segments + an arc,
+rendered per size with 4x4 supersampling so the tray (16 px) stays crisp.
 
     uv run python packaging/make_icon.py
 """
@@ -16,9 +17,32 @@ from pathlib import Path
 OUT = Path(__file__).resolve().parents[1] / "electron" / "assets"
 SIZES = (16, 24, 32, 48, 64, 128, 256)
 BG = (30, 30, 30)
-RING = (255, 215, 0)  # --c-me
-DOT = (212, 212, 212)
+SLASH = (106, 153, 85)  # --c-comment
+LETTER = (255, 215, 0)  # --c-me
 SS = 4  # supersampling per axis
+STROKE = 0.085  # line width, in icon widths
+
+# glyph strokes in unit coords (x right, y down)
+TOP, BOT = 0.27, 0.73
+SLASHES = [((0.12, BOT), (0.25, TOP)), ((0.27, BOT), (0.40, TOP))]
+R_X, R_MID = 0.53, 0.52  # stem x, where the bowl meets the stem
+BOWL_R = (R_MID - TOP) / 2
+BOWL_C = (0.68, TOP + BOWL_R)  # bowl: half circle to the right of this centre
+R_LINES = [
+    ((R_X, TOP), (R_X, BOT)),  # stem
+    ((R_X, TOP), (BOWL_C[0], TOP)),  # bowl top
+    ((R_X, R_MID), (BOWL_C[0], R_MID)),  # bowl bottom
+    ((0.66, R_MID), (0.85, BOT)),  # leg
+]
+
+
+def _seg(px: float, py: float, a: tuple, b: tuple) -> float:
+    """Distance from a point to segment ab."""
+    ax, ay = a
+    bx, by = b
+    dx, dy = bx - ax, by - ay
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+    return math.hypot(px - ax - t * dx, py - ay - t * dy)
 
 
 def _shade(u: float, v: float) -> tuple[tuple[int, int, int], float] | None:
@@ -29,16 +53,14 @@ def _shade(u: float, v: float) -> tuple[tuple[int, int, int], float] | None:
     dy = max(abs(v - 0.5) - (0.5 - r), 0)
     if dx * dx + dy * dy > r * r:
         return None
-    x, y = u - 0.5, 0.5 - v
-    d = math.hypot(x, y)
-    ang = math.degrees(math.atan2(y, x)) % 360
-    # ring, open between -80 and -10 degrees (bottom right)
-    if 0.25 <= d <= 0.36 and not 280 <= ang <= 350:
-        return RING, 1.0
-    # needle dot, up-right
-    nx, ny = 0.13 * math.cos(math.radians(35)), 0.13 * math.sin(math.radians(35))
-    if math.hypot(x - nx, y - ny) <= 0.075:
-        return DOT, 1.0
+    half = STROKE / 2
+    if any(_seg(u, v, a, b) <= half for a, b in SLASHES):
+        return SLASH, 1.0
+    if any(_seg(u, v, a, b) <= half for a, b in R_LINES):
+        return LETTER, 1.0
+    # bowl arc: right half of a circle
+    if u >= BOWL_C[0] and abs(math.hypot(u - BOWL_C[0], v - BOWL_C[1]) - BOWL_R) <= half:
+        return LETTER, 1.0
     return BG, 1.0
 
 

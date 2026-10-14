@@ -134,10 +134,11 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 #clock .sec { font-size: 0.5em; font-weight: 400; color: var(--c-muted); }
 
 /* ---------- relative */
+.srow .ir { color: var(--c-irating); text-align: right; font-size: 0.9em; }
 .srow {
   will-change: transform;
   display: grid;
-  grid-template-columns: 4.5ch 4ch 1.35em 16ch 1.1em 4ch 8ch 8ch;
+  grid-template-columns: 4.5ch 4ch 5ch 1.35em 16ch 1.1em 4ch 8ch 8ch;
   column-gap: 1ch;
   align-items: center;
   padding: 0 0.4em;
@@ -400,10 +401,18 @@ body.preview #btn-exit { display: none; } /* browser preview: nothing to quit */
   cursor: pointer;
 }
 #edit-panel button:hover { background: #37373d; }
-#edit-panel .section {
-  margin: 8px 0 2px;
+/* collapsible sections, collapsed by default */
+#edit-panel .section { margin: 8px 0 2px; }
+#edit-panel .section > summary {
   color: #6a9955;
   font-style: italic;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
 }
-#edit-panel .section::before { content: "// "; }
+#edit-panel .section > summary::-webkit-details-marker { display: none; }
+#edit-panel .section > summary::before { content: "▸ // "; }
+#edit-panel .section[open] > summary::before { content: "▾ // "; }
+#edit-panel .panel-head { cursor: move; }
+#edit-panel .panel-head button { cursor: pointer; }
 #edit-panel .hint { color: #808080; margin: 6px 0 0; }

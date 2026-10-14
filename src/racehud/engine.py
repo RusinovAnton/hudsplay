@@ -274,6 +274,8 @@ class Engine:
                 "clsColor": _class_color(d.get("CarClassColor")),
                 # TODO(windows): verify flair field name with `uv run racehud --dump`
                 "cc": to_iso(d.get("FlairName")),
+                # offline / AI sessions report 0 or 1: no rating to show
+                "ir": d.get("IRating") if (d.get("IRating") or 0) > 1 else None,
             }
         self.multiclass = len({d["cls"] for d in self.drivers.values()}) > 1
         wi = info.get("WeekendInfo") or {}
@@ -575,6 +577,7 @@ class Engine:
                 "num": d["num"],
                 "name": d["name"],
                 "cc": d["cc"],
+                "ir": d["ir"],
                 "best": _r(b),
                 "bestIsClassBest": b is not None and b == class_best.get(d["cls"]),
                 "cls": d["clsName"],

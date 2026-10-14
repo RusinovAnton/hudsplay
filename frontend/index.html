@@ -68,25 +68,31 @@
   </div>
 
   <div id="edit-panel">
-    <div class="panel-head">
+    <div class="panel-head" title="drag to move this panel">
       <span><strong>edit mode</strong> <span class="muted">drag · show/hide · colors</span></span>
       <span class="buttons">
         <button id="btn-done">done</button>
         <button id="btn-exit" title="close the racehud app">exit racehud</button>
       </span>
     </div>
-    <div class="section">selected widget: <span id="selected-name">click a widget</span></div>
-    <div id="selected-rows"></div>
-    <div class="section">widgets</div>
-    <div id="widget-rows"></div>
-    <div class="section">colors</div>
-    <div class="buttons" id="palette-buttons"></div>
-    <div id="theme-rows"></div>
-    <div class="buttons">
-      <button id="btn-copy">copy css</button>
-      <button id="btn-reset-theme">reset colors</button>
-      <button id="btn-reset-layout">reset layout</button>
-    </div>
+    <details class="section" id="sec-selected">
+      <summary>selected widget: <span id="selected-name">click a widget</span></summary>
+      <div id="selected-rows"></div>
+    </details>
+    <details class="section">
+      <summary>widgets</summary>
+      <div id="widget-rows"></div>
+      <div class="buttons"><button id="btn-reset-layout">reset layout</button></div>
+    </details>
+    <details class="section">
+      <summary>colors</summary>
+      <div class="buttons" id="palette-buttons"></div>
+      <div id="theme-rows"></div>
+      <div class="buttons">
+        <button id="btn-copy">copy css</button>
+        <button id="btn-reset-theme">reset colors</button>
+      </div>
+    </details>
     <p class="hint">Click a widget to select it, drag to move, mouse wheel to resize. Colors, positions and sizes save automatically. "copy css" → paste into frontend/theme.css to make them the defaults.</p>
   </div>
 
