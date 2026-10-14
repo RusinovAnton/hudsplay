@@ -41,6 +41,14 @@ Double-click **`start.bat`**. The first run takes 1–2 minutes (Python, package
 Electron download). It opens a backend console window and the overlay, which
 shows up once you're in a session.
 
+**Stuck at "Downloading Electron binary"?** It's ~110 MB with no progress bar, so
+give it a few minutes. If it never finishes (antivirus, firewall, slow GitHub),
+close the window and retry from a mirror in PowerShell, then run `start.bat` again:
+
+```powershell
+cd electron; $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"; node node_modules\electron\install.js
+```
+
 Manual start instead: `uv run racehud` in one terminal,
 `cd electron && npm install && npm start` in another.
 

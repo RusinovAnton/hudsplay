@@ -32,10 +32,33 @@ if errorlevel 1 (
   exit /b 1
 )
 
+cd electron
+rem check the actual binary: an interrupted download leaves node_modules behind without it
+if not exist node_modules\electron\dist\electron.exe (
+  echo.
+  echo  Downloading the overlay window runtime ^(Electron, ~110 MB^).
+  echo  There is no progress bar: this can take a few minutes, it is not frozen.
+  echo.
+  if exist node_modules\electron\install.js (
+    call node node_modules\electron\install.js
+  ) else (
+    call npm install
+  )
+)
+if not exist node_modules\electron\dist\electron.exe (
+  echo.
+  echo  Electron download failed ^(network, antivirus or firewall^).
+  echo  Retry from a mirror in PowerShell, inside the racehud\electron folder:
+  echo.
+  echo    $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"; node node_modules\electron\install.js
+  echo.
+  echo  Then run start.bat again.
+  echo.
+  pause
+  exit /b 1
+)
+cd ..
+
 start "racehud-backend" cmd /k uv run racehud
 cd electron
-if not exist node_modules (
-  echo Installing overlay window dependencies, first run only...
-  call npm install
-)
 call npm start
