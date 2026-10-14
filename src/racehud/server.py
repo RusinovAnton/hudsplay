@@ -36,6 +36,7 @@ def build_app(source, cfg: Config) -> web.Application:
         ws = web.WebSocketResponse(heartbeat=10)
         await ws.prepare(req)
         clients.add(ws)
+        app["engine"].resend_map()  # new window: send the track shape on the next frame
         try:
             async for _ in ws:
                 pass
@@ -43,8 +44,10 @@ def build_app(source, cfg: Config) -> web.Application:
             clients.discard(ws)
         return ws
 
+    app["engine"] = Engine(cfg)
+
     async def pump():
-        engine = Engine(cfg)
+        engine = app["engine"]
         period = 1 / cfg.hz
         last_error = 0.0
         while True:

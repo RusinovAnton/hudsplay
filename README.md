@@ -2,6 +2,8 @@
 
 Personal, minimal iRacing HUD overlay. VS Code look, Fira Code, every color configurable.
 
+![racehud overlay with mock race data at 1920x1080](docs/screenshot.png)
+
 Widgets: session (lap / estimated total, position vs grid, time left), clock,
 relative (cars ±2 on track, class and lap tags, radio indicator), fuel (tank bar,
 per lap, laps left, needed to finish), deltas (session best + gap and catch

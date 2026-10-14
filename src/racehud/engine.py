@@ -251,6 +251,10 @@ class Engine:
             "map": self._map(t, me, now, delta, ahead, behind),
         }
 
+    def resend_map(self) -> None:
+        """Include the (large) track shape in the next frame, e.g. for a new client."""
+        self._sent_map_version = -1
+
     def _delta(self, t: dict) -> float | None:
         var = DELTA_VARS.get(self.cfg.delta_reference, DELTA_VARS["session_best"])[0]
         return t.get(var) if t.get(var + "_OK") else None
