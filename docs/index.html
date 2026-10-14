@@ -243,11 +243,17 @@
       <details><summary>Is it allowed in iRacing?</summary><p>racehud only reads iRacing's official telemetry API, the same one every overlay uses. It never writes to the sim or touches its files.</p></details>
       <details><summary>Does it work in fullscreen?</summary><p>Use borderless windowed mode. Windows can't draw overlays over exclusive fullscreen games.</p></details>
       <details><summary>Where are my settings?</summary><p>Layout and colours are saved automatically. Settings, recorded track maps and the log are in <code>%APPDATA%\racehud\data</code> (tray → Open settings folder).</p></details>
+      <details><summary>Does racehud collect any data?</summary><p>No. It reads iRacing's telemetry on your PC and keeps everything there. The overlay only downloads the Fira Code font from Google Fonts and country flag images from flagcdn.com; those requests carry nothing about you or your sessions.</p></details>
+      <details id="code-signing"><summary>Code signing policy</summary><p>Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>. Installers are built from the <a href="https://github.com/RusinovAnton/racehud">GitHub repository</a> by GitHub Actions and signed only after an approver confirms the request. Committers, reviewers and approvers: <a href="https://github.com/RusinovAnton">Anton Rusinov</a>.</p></details>
       <details><summary>Where does the track map come from?</summary><p>iRacing doesn't provide track shapes, so racehud draws each track once, from your driving, and saves it. On a track you've never driven, the map shows a placeholder circle until your first clean lap; after that it's there from the moment you load in.</p></details>
     </section>
   </main>
 
   <script>
+    // links to a FAQ entry (e.g. #code-signing) open it
+    const openHash = () => { const d = document.getElementById(location.hash.slice(1)); if (d?.tagName === "DETAILS") d.open = true; };
+    addEventListener("hashchange", openHash);
+    openHash();
     // live demo: swap the screenshot for the real HUD replaying a recorded race (docs/demo/),
     // rendered at 1920x1080 and scaled to fit
     (() => {
@@ -267,7 +273,7 @@
 
   <footer>
     <p><span class="comment">// made for sim racers who write code</span> · <a href="https://github.com/RusinovAnton/racehud">github.com/RusinovAnton/racehud</a></p>
-    <p class="small">MIT licensed · racehud is not affiliated with or endorsed by iRacing.com Motorsport Simulations.</p>
+    <p class="small">MIT licensed · <a href="#code-signing">code signing policy</a> · racehud is not affiliated with or endorsed by iRacing.com Motorsport Simulations.</p>
   </footer>
 </body>
 </html>

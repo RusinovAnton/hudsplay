@@ -139,3 +139,24 @@ iRacing (shared memory, 60 Hz)
 
 `--mock` swaps the iRacing source for a fake race (`sources/mock.py`) with the
 same data shape, so the UI and engine can be developed on any OS.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [Anton Rusinov](https://github.com/RusinovAnton)
+- Approvers: [Anton Rusinov](https://github.com/RusinovAnton)
+
+Release installers are built from this repository by GitHub Actions
+(`.github/workflows/release.yml`) and signed only after an approver confirms the
+signing request. Only installers built from this repository's source are signed.
+
+### Privacy
+
+racehud doesn't collect, store or send any personal data or telemetry. It reads
+iRacing's local telemetry on your PC and stays on your PC. The overlay downloads the
+Fira Code web font from Google Fonts and country flag images from flagcdn.com; those
+requests are plain file downloads that don't include anything about you or your
+sessions. Settings, layout and recorded track maps are stored locally in
+`%APPDATA%\racehud`.
