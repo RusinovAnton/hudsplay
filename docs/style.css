@@ -27,7 +27,11 @@ body {
   background: var(--bg);
   color: var(--fg);
   font: 15px/1.65 var(--font);
+  /* same smoothing as the overlay: grayscale antialiasing, unhinted glyphs, no faked bold */
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  font-synthesis: none;
   overflow-x: hidden;
   transition: background-color 0.2s, color 0.2s;
 }
@@ -156,6 +160,9 @@ section { padding: 4rem 0 1rem; }
   color: var(--c-fg);
   user-select: none;
   text-align: left;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
 }
 .hud .widget { position: relative; width: max-content; max-width: 100%; }
 .hud .live { min-width: 0; }
@@ -278,8 +285,8 @@ footer .small { color: var(--muted); font-size: 0.8rem; margin: 0.3rem 0 0; }
   section { padding-top: 3rem; }
   .stage, .specimen { padding: 0.8rem; }
 }
-/* the relative is ~37em wide: shrink it to fit a phone (16px gutters + paddings) */
+/* the relative is ~39em wide: shrink it to fit a phone (16px gutters + paddings) */
 @media (max-width: 560px) {
-  .hud .live[data-w="relative"] .widget { font-size: min(13px, calc((100vw - 64px) / 37.5)); }
+  .hud .live[data-w="relative"] .widget { font-size: min(13px, calc((100vw - 64px) / 39.5)); }
   .hud .live[data-w="map"] .widget { font-size: min(13px, calc((100vw - 64px) / 21.5)); }
 }

@@ -21,7 +21,10 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
   window (`focus.py`, checked by the server); edit mode always shows them.
 - No pedal/input widget.
 - Arrows ▲/▼ instead of the words "ahead"/"behind" in the UI.
-- ▲/▼ widgets: gap + proximity bar + debounced status line ("catching in N laps").
+- ▲/▼ widgets: gap + proximity bar + a calm status line in spotter words: "catching in
+  3 laps" (estimate smoothed ~5 s, whole laps, a new number holds 3 s), "on their tail" /
+  "on your tail" (< 0.5 s), "pulling away" (either side), "holding". Owner: the number
+  must not flicker; "in range" read as ambiguous, "dropping back" isn't spotter talk.
   Ahead "+", behind "-". Color is ALWAYS the global ahead/behind color; gaining vs
   losing only changes saturation (full color = gaining, washed to --c-fg gray = losing).
   Relative widget still uses iRacing's convention: ahead "-", behind "+".
@@ -103,11 +106,18 @@ Session "pos" is colored vs grid position (recorded at SessionState 3/4): green
 gained, red lost, stronger with more places.
 
 Relative: 3 cars each side + the leader pinned on top (dashed line under it) when not
-nearby. Position badge filled with the class color, black number (--c-badge-text) in
+nearby. Position as plain text (no badge), in the class color in
 multiclass; class tag = first letter of the class name, bold, class color; or +1L/-1L tag,
-radio icon from RadioTransmitCarIdx, iRating as "1.2k" (DriverInfo IRating; blank when
-0/1, i.e. offline/AI) on a badge in the license color (`--c-lic-*`, letter from
-LicString, LicColor is unreliable), 4 strengths by safety rating 0.x / 1.x / 2.x / 3+.
+tire compound per car (CarIdxTireCompound -> DriverInfo.DriverTires type: a round badge
+with H / M / S / W in `--c-tire-*`, only when the series has more than one compound),
+radio icon + a light radio-colored row tint from RadioTransmitCarIdx, iRating as "1.2k" (DriverInfo IRating; blank when
+0/1, i.e. offline/AI) on a badge in the license color: the sim's own `LicColor` (what
+the game UI shows) when it's a valid hex, else `--c-lic-*` by the LicString letter
+(iRacing palette, Pro black; a real dump had "0xundefined"). Badge = text + border in the
+license color, see-through tint behind (owner: a solid Rookie red was too bright). Safety
+rating 0.x / 1.x / 2.x / 3+ dims border + tint toward black (40 / 60 / 80 / 100 %, same
+hue, like a dimmer; owner: not blended into the card, that shifts the hue); text stays
+full strength.
 
 Edit mode: click selects a widget -> panel sliders for its size, card background
 opacity and whole-widget opacity (per widget, saved with position in localStorage).
@@ -116,6 +126,10 @@ and "show ahead" / "show behind" (bumper gap, default 2 m / 3 m): it shows only 
 car is that close or alongside.
 Relative rows slide when order changes. Radar glow flashes at ~6 Hz when three wide.
 
+Pit widget: "pit limiter" (`--c-limiter`) while EngineWarnings has irsdk_pitSpeedLimiter
+(0x10); red "limiter off" when moving on pit road without it; hidden otherwise.
+Mock turns the limiter on 6 s every 40 s.
+
 Laps widget: last lap (LapLastLapTime, green when it's my best) + optimal lap, computed
 in `OptimalLap` (best time per SplitTimeInfo sector over clean laps, summed).
 
@@ -123,7 +137,8 @@ Relative widget = cars nearest on track (any class), first column = race positio
 (ranked live by track progress while racing; CarIdxPosition only updates at timing
 lines), lap-up/lap-down cars colored. The ▲/▼ delta widgets = nearest car ahead /
 behind on track (any class, any lap, same gap timing as the relative; cars on pit
-road skipped unless I'm on it), tagged +1L/-1L or class. Hidden in qualifying.
+road skipped unless I'm on it). Title: standing position (same as the relative) + name in
+bold, a dot in the class color (multiclass), +1L/-1L when lapped. Hidden in qualifying.
 In practice + qualifying the relative becomes "standings": every car with a time (best
 lap from live, session ResultsPositions or remembered, so pit/garage/disconnected cars
 stay), window around me, gap = their best - mine. Radar hidden in qualifying.
@@ -147,7 +162,10 @@ Map recording also drops a lap on any incident point.
 4. Track map: drive one clean lap, check `maps/*.json` appears. YawNorth sign verified
    2026-10-14 (compass heading, clockwise positive; Navarra was mirrored before the fix).
 5. Radar in a real pack: side assignment comes from `CarLeftRight` and the nearest
-   overlapping cars. The lateral distance itself isn't in the SDK.
+   overlapping cars. The lateral distance itself isn't in the SDK. Sides follow the SDK
+   enum names (2 = left, 3 = right): checked against spotter callouts 2026-10-16. An
+   earlier "flipped" report led to a swap that was wrong; check against the spotter before
+   ever changing it again.
 
 ## Ideas backlog (owner picks)
 

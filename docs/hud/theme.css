@@ -13,7 +13,6 @@
   --c-label: #569cd6;
 
   --c-pos: #b5cea8;
-  --c-badge-text: #000000;
   --c-number: #ce9178;
   --c-name: #9cdcfe;
   --c-best: #dcdcaa;
@@ -30,6 +29,7 @@
   --c-bad: #ff5533;
   --c-neutral: #ebe5d6; /* bone white: steady, between gain and loss */
   --c-warn: #cca700;
+  --c-limiter: #cca700;
   --c-fuel: #4fc1ff;
   --c-incidents: #ce9178;
   --c-clock: #d4d4d4;
@@ -37,15 +37,21 @@
   --c-track: #9cdcfe;
   --c-irating: #b5cea8;
   /* iRating badge = driver license color (iRacing's), strength by safety rating */
-  --c-lic-r: #e53935;
-  --c-lic-d: #fb8c00;
-  --c-lic-c: #fdd835;
-  --c-lic-b: #43a047;
-  --c-lic-a: #1e88e5;
-  --c-lic-p: #9e9e9e;
+  /* used when the sim sends no LicColor; iRacing's palette (Pro is black) */
+  --c-lic-r: #fc0706;
+  --c-lic-d: #ff8c00;
+  --c-lic-c: #ffcc00;
+  --c-lic-b: #33cc00;
+  --c-lic-a: #0153db;
+  --c-lic-p: #000000;
   --c-last-lap: #d4d4d4;
   --c-optimal-lap: #c586c0;
   --c-radio: #4fc1ff;
+  /* tire compound badges in the relative */
+  --c-tire-wet: #3794ff;
+  --c-tire-soft: #ff5533;
+  --c-tire-medium: #ffd700;
+  --c-tire-hard: #d4d4d4;
 
   --c-radar-car: #9e9e9e;
   --c-radar-danger: #ff3d1f;

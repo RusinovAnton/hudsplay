@@ -9,12 +9,13 @@ function themeFrom(p) {
     "--c-bg": p.bg, "--c-border": p.border, "--c-fg": p.fg, "--c-muted": p.muted,
     "--c-comment": p.comment, "--c-label": p.blue,
     "--c-pos": p.num, "--c-number": p.orange, "--c-name": p.cyan, "--c-best": p.yellow,
-    "--c-best-class": p.purple, "--c-me": p.gold, "--c-badge-text": "#000000",
+    "--c-best-class": p.purple, "--c-me": p.gold,
     "--c-lap-up": p.red, "--c-lap-down": p.lapDown,
     "--c-ahead": p.red, "--c-behind": p.green, "--c-good": p.green, "--c-bad": p.red,
-    "--c-warn": p.warn, "--c-fuel": p.teal, "--c-incidents": p.orange, "--c-clock": p.fg,
+    "--c-warn": p.warn, "--c-limiter": p.warn, "--c-fuel": p.teal, "--c-incidents": p.orange, "--c-clock": p.fg,
     "--c-mode": p.yellow, "--c-track": p.cyan, "--c-irating": p.num, "--c-last-lap": p.fg,
-    "--c-optimal-lap": p.purple, "--c-radio": p.teal, "--c-radar-car": p.car,
+    "--c-optimal-lap": p.purple, "--c-radio": p.teal,
+    "--c-tire-wet": p.lapDown, "--c-tire-soft": p.red, "--c-tire-medium": p.gold, "--c-tire-hard": p.fg, "--c-radar-car": p.car,
     "--c-radar-danger": p.danger, "--c-neutral": p.neutral || "#ebe5d6",
   };
 }

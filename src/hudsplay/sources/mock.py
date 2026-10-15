@@ -165,6 +165,7 @@ class MockSource:
                 "DriverCarIdx": PLAYER,
                 "DriverCarFuelMaxLtr": 60.0,
                 "DriverCarEstLapTime": BASE_LAP,
+                "DriverTires": [{"TireIndex": 0, "TireCompoundType": "Hard"}, {"TireIndex": 1, "TireCompoundType": "Wet"}],
                 "Drivers": [
                     {
                         "CarIdx": i,
@@ -177,6 +178,9 @@ class MockSource:
                         "IRating": 900 + (i * 733) % 3600,
                         # every license class and safety rating level shows up
                         "LicString": f"{'RDCBAP'[i % 6]} {(i * 1.37) % 4.99:.2f}",
+                        # the sim's color for that license; one driver without, like real dumps
+                        "LicColor": "0xundefined" if i == 2 else
+                        (0xFC0706, 0xFF8C00, 0xFFCC00, 0x33CC00, 0x0153DB, 0x000000)[i % 6],
                         "CarIsPaceCar": 0,
                         "IsSpectator": 0,
                     }
@@ -262,14 +266,13 @@ class MockSource:
             if abs(d) * TRACK_LEN_M < 4.8:
                 alongside.append(PINNED.get(i, "L" if i % 2 == 0 else "R"))
         n_left, n_right = alongside.count("L"), alongside.count("R")
-        # CarLeftRight as real iRacing sends it: 1 clear, 2 right, 3 left, 4 both,
-        # 5 two right, 6 two left (see SPOTTER in engine.py)
+        # irsdk_CarLeftRight: 1 clear, 2 left, 3 right, 4 both, 5 two left, 6 two right
         if n_left and n_right:
             lr = 4
         elif n_left:
-            lr = 3 if n_left == 1 else 6
+            lr = 2 if n_left == 1 else 5
         elif n_right:
-            lr = 2 if n_right == 1 else 5
+            lr = 3 if n_right == 1 else 6
         else:
             lr = 1
 
@@ -295,6 +298,8 @@ class MockSource:
             "PlayerCarMyIncidentCount": _incidents(now),
             "IsOnTrack": True,
             "OnPitRoad": False,
+            # pit limiter (irsdk_pitSpeedLimiter) on for 6 s every 40 s, to see the widget
+            "EngineWarnings": 0x10 if now % 40 < 6 else 0,
             "FuelLevel": self.fuel,
             "LapDeltaToSessionBestLap": delta,
             "LapDeltaToSessionBestLap_OK": True,
@@ -305,6 +310,8 @@ class MockSource:
             "CarIdxLapDistPct": pad([x % 1 for x in self.prog], -1.0),
             "CarIdxPosition": position,
             "CarIdxClassPosition": class_position,
+            # a few cars gambled on wets (compound 1)
+            "CarIdxTireCompound": pad([1 if i % 5 == 3 else 0 for i in range(n)], -1),
             "CarIdxBestLapTime": pad(self.best_lap, -1.0),
             "CarIdxLastLapTime": pad(self.last_lap, -1.0),
             "LapLastLapTime": self.last_lap[PLAYER],

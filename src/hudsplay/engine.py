@@ -21,9 +21,9 @@ UNLIMITED_TIME = 604800.0  # iRacing reports a week for "no time limit"
 CAR_LENGTH_M = 4.8
 SIDE_BY_SIDE_M = CAR_LENGTH_M * 1.5
 
-# irsdk_CarLeftRight. Left/right are swapped vs the SDK enum names (2 = CarLeft):
-# in real iRacing 2 is a car on my right (verified 2026-10-15, radar was mirrored).
-SPOTTER = {0: "off", 1: "clear", 2: "right", 3: "left", 4: "both", 5: "right2", 6: "left2"}
+# irsdk_CarLeftRight, as the SDK names it: 2 = car left, 3 = car right. Verified against
+# the spotter's callouts in a race 2026-10-16 (an earlier swap had the radar mirrored).
+SPOTTER = {0: "off", 1: "clear", 2: "left", 3: "right", 4: "both", 5: "left2", 6: "right2"}
 # delta reference -> iRacing var (each has a matching *_OK flag). "SessionLastl" is iRacing's typo.
 DELTA_VARS = {
     "session_best": ("LapDeltaToSessionBestLap", "session best"),
@@ -38,7 +38,8 @@ INCIDENT_MERGE_S = 2.5  # iRacing escalates in steps (1x -> 2x): merge into one 
 INCIDENT_ALERT_S = 4.0  # the "contact 4x" alert shows this long after the last step
 GAIN_TAU_S = 1.0  # smoothing of the "gaining right now" rate on the ▲/▼ widgets
 CLOSING_WINDOW_LAPS = 0.15  # ▲/▼ "catching in N laps" uses the gap change over this much lap
-SPOTTER_SIDES = {2: ["R"], 3: ["L"], 4: ["L", "R"], 5: ["R", "R2"], 6: ["L", "L2"]}
+PIT_LIMITER_BIT = 0x10  # irsdk_EngineWarnings: irsdk_pitSpeedLimiter
+SPOTTER_SIDES = {2: ["L"], 3: ["R"], 4: ["L", "R"], 5: ["L", "L2"], 6: ["R", "R2"]}
 
 
 class CarTrack:
@@ -241,14 +242,16 @@ def _track_length_m(text: str | None) -> float | None:
     return v * 1609.344 if unit.startswith("mi") else v * 1000
 
 
-def _license(text) -> dict:
-    """DriverInfo LicString "A 3.41" -> {"lic": "A", "sr": 3.41}. (LicColor is unreliable:
-    "0xundefined" seen in a real dump.) Unknown -> nothing."""
+def _license(text, color=None) -> dict:
+    """DriverInfo LicString "A 3.41" + LicColor -> {"lic": "A", "sr": 3.41, "licColor": "#0153db"}.
+    LicColor is the sim's own color for that license (what the game UI shows), but it can
+    be missing ("0xundefined" seen in a real dump): then licColor is None and the frontend
+    falls back to its --c-lic-* color for the letter. Unknown -> nothing."""
     try:
         letter, sr = str(text).split()
-        return {"lic": letter[:2].upper(), "sr": float(sr)}
+        return {"lic": letter[:2].upper(), "sr": float(sr), "licColor": _class_color(color)}
     except (TypeError, ValueError):
-        return {"lic": None, "sr": None}
+        return {"lic": None, "sr": None, "licColor": None}
 
 
 def _limit(value) -> int | None:
@@ -281,6 +284,7 @@ class Engine:
         self.fuel_capacity: float | None = None
         self.est_lap = 100.0
         self.grid_slot: dict[int, int] = {}
+        self.tire_types: dict[int, str] = {}  # compound index -> 'hard' / 'wet' / ...
         self.incident_limit: int | None = None
         self.incident_warn: tuple[int | None, int | None] = (None, None)
         self.sessions: dict[int, dict] = {}
@@ -301,6 +305,7 @@ class Engine:
         self.trends: dict[tuple[int, bool], dict[int, float]] = {}
         self.gains: dict[tuple[int, bool], list[float]] = {}  # [time, g, smoothed rate]
         self.radar_sides: dict[int, str] = {}
+        self.positions: dict[int, int] = {}  # this frame's position per car (relative / ▲▼)
         self.start_pos: int | None = None
         self.best_seen: dict[int, float] = {}  # best lap per car this session, kept after they leave
         self.paint = DeltaPaint(getattr(self, "track_len", None))
@@ -328,7 +333,7 @@ class Engine:
                 "cc": to_iso(d.get("FlairName")),
                 # offline / AI sessions report 0 or 1: no rating to show
                 "ir": d.get("IRating") if (d.get("IRating") or 0) > 1 else None,
-                **_license(d.get("LicString")),
+                **_license(d.get("LicString"), d.get("LicColor")),
             }
         self.multiclass = len({d["cls"] for d in self.drivers.values()}) > 1
         wi = info.get("WeekendInfo") or {}
@@ -358,6 +363,12 @@ class Engine:
             self.sector_starts = starts
             self.optimal = OptimalLap(starts)
         # starting grid from qualifying (QualifyResultsInfo Position is 0-based)
+        # tire compounds this car has (DriverTires: TireIndex -> TireCompoundType)
+        self.tire_types = {
+            int(x["TireIndex"]): str(x.get("TireCompoundType") or "").strip().lower()
+            for x in di.get("DriverTires") or []
+            if x.get("TireIndex") is not None
+        }
         self.grid_slot = {
             r["CarIdx"]: int(r.get("Position", 999))
             for r in (info.get("QualifyResultsInfo") or {}).get("Results") or []
@@ -411,6 +422,7 @@ class Engine:
             "relative": standings,
             "fuel": self._fuel(t, me, laps_to_go),
             "incidents": self._incidents(t, now),
+            "pit": self._pit(t),
             "laps": self._laps(t, me),
             "delta": {
                 "best": _r(delta),
@@ -568,6 +580,7 @@ class Engine:
         """Race order around me: rivals for the delta widgets, my position, relative rows."""
         class_only = self.cfg.standings_class_only
         positions = self._positions(t, race, class_only)
+        self.positions = positions  # the ▲/▼ widgets show the same position as the relative
         my_cls = self.drivers.get(me, {}).get("cls")
 
         entries = []
@@ -675,6 +688,9 @@ class Engine:
         """Row builder shared by the relative and the qualifying standings."""
         on_pit = t.get("CarIdxOnPitRoad") or []
         talking = t.get("RadioTransmitCarIdx", -1)  # -1 = nobody on the radio
+        compounds = t.get("CarIdxTireCompound") or []
+        # only worth showing when the series has a choice (dry / wet, soft / hard)
+        tires = self.tire_types if len(self.tire_types) > 1 else {}
         class_best: dict = {}
         for idx, d in self.drivers.items():
             b = self._best(t, idx)
@@ -693,6 +709,7 @@ class Engine:
                 "ir": d["ir"],
                 "lic": d["lic"],
                 "sr": d["sr"],
+                "licColor": d["licColor"],
                 "best": _r(b),
                 "bestIsClassBest": b is not None and b == class_best.get(d["cls"]),
                 "cls": d["clsName"],
@@ -702,6 +719,7 @@ class Engine:
                 "isMe": idx == me,
                 "inPit": bool(on_pit[idx]) if idx < len(on_pit) else False,
                 "radio": idx == talking,
+                "tire": tires.get(compounds[idx]) if idx < len(compounds) else None,
             }
 
         return row
@@ -846,12 +864,24 @@ class Engine:
             "name": d["name"],
             "gap": _r(gap),
             "lapRel": lap_rel,
+            "pos": self.positions.get(idx, 0),
             "cls": d["clsName"],
+            "clsColor": d["clsColor"],
             "trend": _r(trend),
             "gain": _r(gain, 4),
             "closing": _r(closing),
             "catchLaps": _r(catch, 1),
             "catchAfterFlag": bool(catch is not None and laps_to_go is not None and catch > laps_to_go),
+        }
+
+    def _pit(self, t: dict) -> dict:
+        """Pit limiter on/off (EngineWarnings bit), and whether I'm on pit road moving
+        (limiter off there = speeding penalty)."""
+        ew = t.get("EngineWarnings") or 0
+        return {
+            "limiter": bool(ew & PIT_LIMITER_BIT),
+            "onPitRoad": bool(t.get("OnPitRoad")),
+            "moving": (t.get("Speed") or 0) > 1.0,
         }
 
     def _incidents(self, t: dict, now: float) -> dict:

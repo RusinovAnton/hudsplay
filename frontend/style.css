@@ -97,13 +97,30 @@ body.preview {
 /* count color is set in app.js: gray at 0x, more red with every incident */
 /* incident alert: pops up on an incident, fades out (always visible in edit mode) */
 #w-incident-alert {
-  font-size: 1.8em;
   font-weight: 500;
   transition: opacity 0.6s;
 }
 #w-incident-alert.idle { opacity: 0; }
 body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 #ia-x { color: var(--c-incidents); }
+/* icons in the center alerts (incident: a small burst like iRacing's, pit limiter: gauge) */
+.alert-icon {
+  width: 1em;
+  height: 1em;
+  margin-right: 0.35em;
+  vertical-align: -0.12em;
+}
+#w-incident-alert .alert-icon { color: var(--c-incidents); }
+
+/* ---------- pit limiter: shows while it's on, or red on pit road without it */
+#w-pit {
+  font-weight: 500;
+  color: var(--c-limiter);
+  transition: opacity 0.3s;
+}
+#w-pit.missing { color: var(--c-bad); }
+#w-pit.idle { opacity: 0; }
+body.edit #w-pit.idle { opacity: var(--w-opacity, 1); }
 
 /* ---------- fuel */
 #w-fuel .v { color: var(--c-fuel); }
@@ -144,24 +161,30 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 
 /* ---------- relative */
 .srow .ir { color: var(--c-irating); text-align: right; font-size: 0.9em; }
-/* iRating badge: license color, stronger with safety rating (SR 0.x .. 3+) */
+/* iRating badge: text + border in the license color, a see-through tint behind. Lower
+   safety rating (SR 0.x .. 3+) dims border and tint toward black: same hue, like a dimmer.
+   The text stays full strength (lifted a little so dark A blue reads on the card). */
 .srow .ir.lic {
+  --lic-dim: color-mix(in srgb, var(--lic) var(--lic-k), #000);
   justify-self: end;
   padding: 0 0.3em;
   border-radius: 3px;
-  line-height: 1.35;
-  color: var(--c-fg);
-  background: color-mix(in srgb, var(--lic) var(--lic-k), transparent);
+  line-height: 1.25;
+  color: color-mix(in srgb, var(--lic) 80%, #fff);
+  border: 1px solid var(--lic-dim);
+  background: color-mix(in srgb, var(--lic-dim) 30%, transparent);
 }
-.srow .ir.sr0 { --lic-k: 25%; }
-.srow .ir.sr1 { --lic-k: 50%; }
-.srow .ir.sr2 { --lic-k: 75%; color: var(--c-badge-text); }
-.srow .ir.sr3 { --lic-k: 100%; color: var(--c-badge-text); font-weight: 500; }
+.srow .ir.sr0 { --lic-k: 40%; }
+.srow .ir.sr1 { --lic-k: 60%; }
+.srow .ir.sr2 { --lic-k: 80%; }
+.srow .ir.sr3 { --lic-k: 100%; font-weight: 500; }
+/* Pro is black: light text and border so it shows on the dark card */
+.srow .ir.pro { color: var(--c-fg); border-color: color-mix(in srgb, var(--c-fg) 45%, transparent); background: rgba(0, 0, 0, 0.6); }
 /* no will-change: a permanent layer per row renders its text blurry at 1x; the slide
    animation gets a layer only while it runs */
 .srow {
   display: grid;
-  grid-template-columns: 4.5ch 4ch 5ch 1.35em 16ch 1.1em 3ch 8ch 8ch;
+  grid-template-columns: 4.5ch 4ch 5ch 1.35em 16ch 1.1em 3ch 1.4em 8ch 8ch;
   column-gap: 1ch;
   align-items: center;
   padding: 0 0.4em;
@@ -185,6 +208,8 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
   visibility: visible;
   animation: radio-pulse 0.9s ease-in-out infinite;
 }
+/* whole row tinted while that driver talks (my own row keeps its "me" highlight) */
+.srow.talking:not(.me) { background: color-mix(in srgb, var(--c-radio) 16%, transparent); }
 @keyframes radio-pulse {
   50% { opacity: 0.45; }
 }
@@ -193,24 +218,13 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 }
 
 /* position badge */
+/* position: plain text (no badge), in the class color in multiclass */
 .srow .pos {
   justify-self: start;
-  min-width: 4ch;
-  padding: 0 0.35em;
-  border-radius: 3px;
-  text-align: center;
   font-weight: 500;
-  line-height: 1.35;
   color: var(--c-pos);
-  background: color-mix(in srgb, var(--c-pos) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--c-pos) 45%, transparent);
 }
-/* multiclass: badge filled with the car's class color */
-.srow .pos.class-color, .srow.me .pos.class-color {
-  color: var(--c-badge-text);
-  background: var(--badge);
-  border-color: var(--badge);
-}
+.srow .pos.class-color, .srow.me .pos.class-color { color: var(--badge); }
 /* class short name or lap up/down tag */
 /* long class names are clipped so they never run into the lap time */
 .srow .tag {
@@ -226,16 +240,30 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 .srow.leader { border-bottom: 1px dashed var(--c-border); }
 .srow .tag.lap-up { color: var(--c-lap-up); font-weight: 500; }
 .srow .tag.lap-down { color: var(--c-lap-down); font-weight: 500; }
-.srow.me .pos {
-  color: var(--c-me);
-  background: color-mix(in srgb, var(--c-me) 22%, transparent);
-  border-color: color-mix(in srgb, var(--c-me) 55%, transparent);
-}
+.srow.me .pos { color: var(--c-me); }
 .srow .num { color: var(--c-number); }
 .srow .name { color: var(--c-name); overflow: hidden; text-overflow: ellipsis; }
 .srow.me .name { color: var(--c-me); }
 .srow.lap-up .name, .srow.lap-up .num { color: var(--c-lap-up); }
 .srow.lap-down .name, .srow.lap-down .num { color: var(--c-lap-down); }
+/* tire compound: letter on a round "tire" (empty when the series has one compound) */
+.srow .tire {
+  justify-self: center;
+  width: 1.45em;
+  height: 1.45em;
+  border-radius: 50%;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1.25em;
+  text-align: center;
+  border: 0.13em solid transparent;
+}
+.srow .tire.on { border-color: var(--tire); color: var(--tire); }
+.srow .tire.wet { --tire: var(--c-tire-wet); }
+.srow .tire.soft { --tire: var(--c-tire-soft); }
+.srow .tire.medium { --tire: var(--c-tire-medium); }
+.srow .tire.hard { --tire: var(--c-tire-hard); }
+.srow .tire.other { --tire: var(--c-muted); }
 .srow .best { color: var(--c-best); text-align: right; }
 .srow .best.class-best { color: var(--c-best-class); }
 .srow .gap { text-align: right; }
@@ -259,6 +287,18 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
   align-items: center;
 }
 .drow .v { text-align: right; }
+/* ▲/▼ title: position + name bold, a dot in the car's class color (multiclass) */
+.delta .title b { font-weight: 500; font-style: normal; }
+.delta .title .rp { color: var(--c-pos); }
+.delta .title .rn { color: var(--c-name); }
+.delta .title .cls-dot {
+  display: inline-block;
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  background: var(--dot);
+  vertical-align: 0.05em;
+}
 .delta.ahead .v { color: var(--c-ahead); }
 .delta.behind .v { color: var(--c-behind); }
 .delta .catch {

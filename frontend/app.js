@@ -97,9 +97,12 @@ class DeltaBar {
 
 // ---------------------------------------------------------------- widgets
 
+// compares with the last string set, not innerHTML (the browser re-serializes markup,
+// which would make it rewrite every frame)
 function setHtml(el, html) {
-  if (el.innerHTML !== html) el.innerHTML = html;
+  if (el._html !== html) { el.innerHTML = html; el._html = html; }
 }
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 const POS_FULL_PLACES = 5; // places gained/lost for full color
 
@@ -155,6 +158,16 @@ function renderIncidents(inc) {
     : "var(--c-muted)";
 }
 
+// pit limiter: "pit limiter" while it's on; "limiter off" in red when I'm moving on pit
+// road without it (speeding penalty); hidden otherwise
+function renderPit(p) {
+  const missing = p.onPitRoad && p.moving && !p.limiter;
+  const w = $("w-pit");
+  w.classList.toggle("idle", !p.limiter && !missing);
+  w.classList.toggle("missing", missing);
+  setText($("pit-text"), missing ? "limiter off" : "pit limiter");
+}
+
 function renderLaps(l) {
   const pb = l.last != null && l.best != null && Math.abs(l.last - l.best) < 0.0005;
   setText($("l-last"), fmtLap(l.last), pb ? "good" : "");
@@ -200,9 +213,9 @@ function standingsRow() {
   row.className = "srow";
   row.innerHTML =
     '<span class="pos"></span><span class="num"></span><span class="ir"></span><img class="flag" alt="">' +
-    `<span class="name"></span>${RADIO_ICON}<span class="tag"></span><span class="best"></span><span class="gap"></span>`;
-  const [pos, num, ir, flag, name, radio, tag, best, gap] = row.children;
-  return { row, pos, num, flag, name, radio, tag, ir, best, gap };
+    `<span class="name"></span>${RADIO_ICON}<span class="tag"></span><span class="tire"></span><span class="best"></span><span class="gap"></span>`;
+  const [pos, num, ir, flag, name, radio, tag, tire, best, gap] = row.children;
+  return { row, pos, num, flag, name, radio, tag, tire, ir, best, gap };
 }
 
 // rows keep their element per car; when the order changes they slide (FLIP)
@@ -231,6 +244,9 @@ function reorderRows(container, ids) {
 }
 
 let multiclass = false;
+// tire compound name (DriverTires TireCompoundType, lowercased) -> badge color class
+const TIRE_KIND = { wet: "wet", rain: "wet", soft: "soft", medium: "medium", hard: "hard", primary: "hard", alternate: "soft" };
+
 
 function renderStandings(rows) {
   setText($("st-title"), state.session?.standings ? "// standings" : state.session?.grid ? "// grid" : "// relative");
@@ -280,16 +296,23 @@ function renderStandings(rows) {
     }
     setText(el.name, r.name);
     setText(el.ir, r.ir ? `${(r.ir / 1000).toFixed(1)}k` : "");
-    // badge in the license color, 4 strengths by safety rating (0.x / 1.x / 2.x / 3+)
+    // badge in the license color, dimmed by safety rating (0.x / 1.x / 2.x / 3+): the sim's
+    // own LicColor (what the game UI shows) when it sends one, else --c-lic-*
     const lic = r.ir && r.lic ? r.lic.charAt(0).toLowerCase() : "";
-    const licKey = lic && `${lic}${Math.min(3, Math.max(0, Math.floor(r.sr ?? 0)))}`;
+    const level = Math.min(3, Math.max(0, Math.floor(r.sr ?? 0)));
+    const base = lic ? r.licColor || colors[`--c-lic-${lic}`] || "" : "";
+    const licKey = lic && `${lic}${level}${base}`;
     if (el.ir.dataset.lic !== licKey) {
       el.ir.dataset.lic = licKey;
-      el.ir.className = licKey ? `ir lic sr${licKey.slice(1)}` : "ir";
-      if (lic) el.ir.style.setProperty("--lic", `var(--c-lic-${lic}, var(--c-irating))`);
+      el.ir.className = licKey
+        ? `ir lic sr${level}${lic === "p" ? " pro" : ""}` : "ir";
+      if (lic) el.ir.style.setProperty("--lic", r.licColor || `var(--c-lic-${lic}, var(--c-irating))`);
       else el.ir.style.removeProperty("--lic");
       el.ir.title = licKey ? `${r.lic} ${r.sr?.toFixed(2)}` : "";
     }
+    // tire compound (only sent when the series has a choice): first letter on a tire badge
+    setText(el.tire, r.tire ? r.tire.charAt(0).toUpperCase() : "", r.tire ? `on ${TIRE_KIND[r.tire] || "other"}` : "");
+    if (el.tire.title !== (r.tire || "")) el.tire.title = r.tire || "";
     setText(el.best, fmtLap(r.best), r.bestIsClassBest ? "class-best" : "");
     let gap = "", cls = "";
     if (!r.isMe && r.gap != null) {
@@ -335,13 +358,14 @@ const PROX_RANGE_S = 2.0; // proximity bar: empty at this gap, full at 0
 const CATCH_MAX_LAPS = 10; // beyond this a "catching in N laps" number is noise
 const CLOSE_GAP_S = 0.5; // below this gap the cars are together: no catch estimate
 const HOLD_S_PER_LAP = 0.02; // gap change below this per lap reads as "holding"
-const STATUS_HOLD_MS = 400; // new status must be stable this long before it shows
-const STATUS_NUM_MS = 250; // lap count refresh interval
+const STATUS_HOLD_MS = 1200; // new status must be stable this long before it shows
+const CATCH_SMOOTH_S = 5; // "catching in N laps": the estimate is smoothed this much...
+const STATUS_NUM_MS = 3000; // ...and a new whole-lap number must hold this long to show
 
 function renderRival(w, r, arrow) {
   const ahead = arrow === UP;
   if (!r) {
-    setText(w.v, "–", ""); setText(w.titleEl, `// ${arrow}`); setText(w.catchEl, "", "");
+    setText(w.v, "–", ""); setHtml(w.titleEl, `// ${arrow}`); setText(w.catchEl, "", "");
     w.v.style.color = "";
     w.fill.style.width = "0";
     return;
@@ -357,9 +381,12 @@ function renderRival(w, r, arrow) {
   const base = ahead ? "var(--c-ahead)" : "var(--c-behind)";
   const tint = `color-mix(in srgb, ${base} ${step(10 + 90 * k, 5)}%, var(--c-fg))`;
   w.v.style.color = tint;
-  // lapped / lapping car, or another class: tag it like the relative does
-  const tag = r.lapRel ? ` ${r.lapRel > 0 ? "+" : ""}${r.lapRel}L` : multiclass && r.cls ? ` ${r.cls}` : "";
-  setText(w.titleEl, `// ${arrow} #${r.num} ${r.name}${tag}`);
+  // standing position + name in bold, a dot in the class color (multiclass), and the
+  // lapped / lapping tag like the relative
+  const pos = r.pos > 0 ? `<b class="rp">P${r.pos}</b> ` : "";
+  const dot = multiclass && r.clsColor ? ` <span class="cls-dot" style="--dot:${r.clsColor}" title="${esc(r.cls)}"></span>` : "";
+  const lap = r.lapRel ? ` ${r.lapRel > 0 ? "+" : ""}${r.lapRel}L` : "";
+  setHtml(w.titleEl, `// ${arrow} ${pos}#${esc(r.num)} <b class="rn">${esc(r.name)}</b>${dot}${lap}`);
 
   // proximity: the closer the car, the fuller the bar
   const prox = Math.min(1, Math.max(0, 1 - gapAbs / PROX_RANGE_S));
@@ -369,43 +396,52 @@ function renderRival(w, r, arrow) {
   w.fill.style.background = tint;
   w.fill.className = "fill prox";
 
-  // status line, debounced: a new status must hold STATUS_HOLD_MS before it shows,
-  // the lap count refreshes at most every STATUS_NUM_MS
+  // status line, calm on purpose: the catch estimate is smoothed (CATCH_SMOOTH_S), shown
+  // in whole laps, a new lap number must hold STATUS_NUM_MS and a new status
+  // STATUS_HOLD_MS before they show
+  const now = performance.now();
+  const st = (w.status ??= { car: null, kind: "", laps: null, pending: null, since: 0, smooth: null, t: now, nextLaps: null, lapsSince: 0 });
+  if (st.car !== r.num) Object.assign(st, { smooth: null }); // new car: start over
+  const dt = Math.min((now - st.t) / 1000, 1);
+  st.t = now;
+  st.smooth = r.catchLaps == null ? null
+    : st.smooth == null ? r.catchLaps : st.smooth + (r.catchLaps - st.smooth) * (1 - Math.exp(-dt / CATCH_SMOOTH_S));
   let kind = "", laps = null;
   if (gapAbs < CLOSE_GAP_S) {
     kind = "close"; // already together: a catch estimate means nothing here
   } else if (r.catchAfterFlag) {
     kind = "flag"; // closing, but the race ends first
-  } else if (r.catchLaps != null && r.catchLaps < 1) {
+  } else if (st.smooth != null && st.smooth < 1) {
     kind = "soon";
-  } else if (r.catchLaps != null && r.catchLaps <= CATCH_MAX_LAPS) {
+  } else if (st.smooth != null && st.smooth <= CATCH_MAX_LAPS) {
     kind = "catch";
-    laps = Math.round(r.catchLaps * 2) / 2;
-  } else if (r.catchLaps != null) {
+    laps = Math.round(st.smooth);
+  } else if (st.smooth != null) {
     kind = "slow"; // too far out to be a useful number
   } else if (r.closing != null) {
     kind = Math.abs(r.closing) < HOLD_S_PER_LAP ? "hold" : "away";
   }
-  const now = performance.now();
-  const st = (w.status ??= { car: null, kind: "", laps: null, pending: null, since: 0, numAt: 0 });
   if (st.car !== r.num) {
-    Object.assign(st, { car: r.num, kind, laps, pending: null, numAt: now });
+    Object.assign(st, { car: r.num, kind, laps, pending: null, nextLaps: null });
   } else if (kind !== st.kind) {
     if (st.pending !== kind) { st.pending = kind; st.since = now; }
-    if (now - st.since >= STATUS_HOLD_MS) Object.assign(st, { kind, laps, pending: null, numAt: now });
+    if (now - st.since >= STATUS_HOLD_MS) Object.assign(st, { kind, laps, pending: null, nextLaps: null });
   } else {
     st.pending = null;
-    if (kind === "catch" && now - st.numAt >= STATUS_NUM_MS) { st.laps = laps; st.numAt = now; }
+    if (kind === "catch" && laps !== st.laps) {
+      if (st.nextLaps !== laps) { st.nextLaps = laps; st.lapsSince = now; }
+      if (now - st.lapsSince >= STATUS_NUM_MS) { st.laps = laps; st.nextLaps = null; }
+    } else st.nextLaps = null;
   }
-  const n = st.laps == null ? "" : st.laps.toFixed(1);
+  const n = st.laps === 1 ? "1 lap" : `${st.laps} laps`;
   const text = {
-    catch: ahead ? `catching in ${n} laps` : `catches you in ${n} laps`,
-    close: ahead ? "in range" : "on your tail",
+    catch: ahead ? `catching in ${n}` : `catches you in ${n}`,
+    close: ahead ? "on their tail" : "on your tail",
     soon: ahead ? "catching this lap" : "catches you this lap",
     flag: ahead ? "won't catch by the flag" : "safe to the flag",
     slow: "closing slowly",
     hold: "holding",
-    away: ahead ? "pulling away" : "dropping back",
+    away: "pulling away", // spotter wording, either way
   }[st.kind] || "";
   setText(w.catchEl, text, "");
 }
@@ -458,7 +494,8 @@ function pct(value, fallback) {
 
 function refreshColors() {
   const cs = getComputedStyle(root);
-  for (const k of ["--c-bg", "--c-border", "--c-me", "--c-muted", "--c-radar-car", "--c-radar-danger", "--c-fg", "--c-good", "--c-bad", "--c-neutral", "--c-ahead", "--c-behind", "--c-lap-up", "--c-lap-down"]) {
+  for (const k of ["--c-bg", "--c-border", "--c-me", "--c-muted", "--c-radar-car", "--c-radar-danger", "--c-fg", "--c-good", "--c-bad", "--c-neutral", "--c-ahead", "--c-behind", "--c-lap-up", "--c-lap-down",
+    "--c-lic-r", "--c-lic-d", "--c-lic-c", "--c-lic-b", "--c-lic-a", "--c-lic-p"]) {
     colors[k] = cs.getPropertyValue(k).trim();
   }
   colors.opacity = pct(cs.getPropertyValue("--bg-opacity"), 0.8);
@@ -555,8 +592,10 @@ function renderRadar(r) {
     ctx.globalAlpha = 1;
   }
 
-  // range rings every 5 m
+  // range rings every 5 m: always the same thin dots (set the width here, the side
+  // glow's rim above leaves it at 4 px)
   ctx.strokeStyle = colors["--c-border"];
+  ctx.lineWidth = 1;
   ctx.setLineDash([2, 4]);
   for (let m = 5; m < range; m += 5) {
     ctx.beginPath();
@@ -916,6 +955,7 @@ function frame() {
       [(rows) => { multiclass = !!state.session?.multiclass; renderStandings(rows); }, state.relative],
       [renderFuel, state.fuel],
       [renderIncidents, state.incidents],
+      [renderPit, state.pit],
       [renderLaps, state.laps],
       [renderDelta, state.delta],
       // canvases of switched-off widgets (display: none outside edit mode) aren't drawn
@@ -950,6 +990,7 @@ const DEFAULT_LAYOUT = {
   incidents: { x: 1.5, y: 71 },
   laps: { x: 10, y: 50 },
   "incident-alert": { x: 44, y: 40 },
+  pit: { x: 44, y: 33 },
 };
 
 // widgets switched off stay visible (dimmed) in edit mode, each with an on/off switch
@@ -1256,7 +1297,6 @@ const THEME_VARS = [
   ["--c-name", "driver name"],
   ["--c-number", "car number"],
   ["--c-pos", "position"],
-  ["--c-badge-text", "position on class color"],
   ["--c-best", "best lap"],
   ["--c-best-class", "fastest lap in class"],
   ["--c-ahead", "car ahead (global)"],
@@ -1268,6 +1308,7 @@ const THEME_VARS = [
   ["--c-bad", "loss / bad"],
   ["--c-neutral", "steady (between gain and loss)"],
   ["--c-warn", "warning"],
+  ["--c-limiter", "pit limiter"],
   ["--c-fuel", "fuel"],
   ["--c-incidents", "incident alert points"],
   ["--c-clock", "clock"],
@@ -1283,6 +1324,10 @@ const THEME_VARS = [
   ["--c-last-lap", "last lap"],
   ["--c-optimal-lap", "optimal lap"],
   ["--c-radio", "radio (talking)"],
+  ["--c-tire-wet", "tire: wet"],
+  ["--c-tire-soft", "tire: soft"],
+  ["--c-tire-medium", "tire: medium"],
+  ["--c-tire-hard", "tire: hard / dry"],
   ["--c-label", "labels"],
   ["--c-comment", "titles"],
   ["--c-fg", "text"],

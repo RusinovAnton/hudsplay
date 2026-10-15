@@ -137,13 +137,18 @@ const TEMPLATES = {
   incidents: () => `<div class="widget" data-id="incidents"><div class="title">// incidents</div>
     <div class="big" data-f="inc"></div></div>`,
   "incident-alert": () => `<div class="widget" id="w-incident-alert" data-id="incident-alert">
-    <span>contact</span> <span id="ia-x">4x</span></div>`,
+    <svg class="alert-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.0 0.9 9.1 5.4 12.0 3.6 10.7 6.8 15.5 7.0 11.1 8.8 13.2 11.3 10.0 10.7 10.5 15.1 8.0 11.4 5.7 14.5 6.0 10.7 1.4 12.1 4.9 8.8 2.2 7.3 5.3 6.8 3.5 2.9 6.9 5.4Z" fill="currentColor" stroke="currentColor" stroke-width="0.6" stroke-linejoin="round"/></svg><span>contact</span> <span id="ia-x">4x</span></div>`,
   "delta-best": () => deltaTemplate("best", "// Δ session best"),
-  "delta-ahead": () => deltaTemplate("ahead", "// ▲ #21 J. O'Neill"),
-  "delta-behind": () => deltaTemplate("behind", "// ▼ #55 M. Ruiz"),
+  "delta-ahead": () => deltaTemplate("ahead", rivalTitle("▲", 6, 21, "J. O'Neill", "GT3")),
+  "delta-behind": () => deltaTemplate("behind", rivalTitle("▼", 8, 55, "M. Ruiz", "GT3")),
   map: () => `<div class="widget" id="w-map" data-id="map"><div class="title">// map</div><canvas id="map"></canvas></div>`,
   radar: () => `<div class="widget" id="w-radar" data-id="radar"><canvas id="radar"></canvas></div>`,
 };
+// ▲/▼ title like the overlay: position + name bold, a dot in the class color
+function rivalTitle(arrow, pos, num, name, cls) {
+  return `// ${arrow} <b class="rp">P${pos}</b> #${num} <b class="rn">${name}</b> ` +
+    `<span class="cls-dot" style="--dot:${CLASS_COLORS[cls]}" title="${cls}"></span>`;
+}
 function deltaTemplate(kind, title) {
   return `<div class="widget delta ${kind}" data-id="delta-${kind}"><div class="title">${title}</div>
     <div class="drow"><span class="v">–</span><div class="bar"><div class="fill"></div></div></div>
@@ -162,9 +167,11 @@ function relativeRows(box) {
     row.innerHTML =
       `<span class="pos class-color" style="--badge:${CLASS_COLORS[cls]}">P${pos}</span>` +
       `<span class="num">#${num}</span>` +
-      `<span class="ir lic sr${Math.min(3, Math.floor(sr))}" style="--lic:var(--c-lic-${lic.toLowerCase()})" title="${lic} ${sr.toFixed(2)}">${(ir / 1000).toFixed(1)}k</span>` +
+      `<span class="ir lic sr${Math.min(3, Math.floor(sr))}" data-lic="${lic.toLowerCase()}" style="--lic:var(--c-lic-${lic.toLowerCase()})" title="${lic} ${sr.toFixed(2)}">${(ir / 1000).toFixed(1)}k</span>` +
       `<img class="flag on" alt="" src="https://flagcdn.com/w40/${cc}.png">` +
       `<span class="name">${name}</span>${RADIO_ICON}${tag}` +
+      // two cars gambled on wets
+      (num === 41 || num === 3 ? '<span class="tire on wet" title="wet">W</span>' : '<span class="tire on hard" title="hard">H</span>') +
       `<span class="best${num === 12 ? " class-best" : ""}">${fmtLap(d[8])}</span><span class="gap"></span>`;
     row.dataset.num = num;
     box.appendChild(row);
@@ -247,13 +254,13 @@ function updateText(inst, t, r) {
     inst.fill.className = "fill prox";
     const closing = ahead ? -r.aheadRate * LAP_S : -r.behindRate * LAP_S; // s/lap
     let text;
-    if (gap < 0.5) text = ahead ? "in range" : "on your tail";
+    if (gap < 0.5) text = ahead ? "on their tail" : "on your tail";
     else if (Math.abs(closing) < 0.6) text = "holding";
     else if (closing > 0) {
       const laps = gap / closing;
       text = laps < 1 ? (ahead ? "catching this lap" : "catches you this lap")
-        : `${ahead ? "catching in" : "catches you in"} ${(Math.round(laps * 2) / 2).toFixed(1)} laps`;
-    } else text = ahead ? "pulling away" : "dropping back";
+        : `${ahead ? "catching in" : "catches you in"} ${Math.round(laps) === 1 ? "1 lap" : `${Math.round(laps)} laps`}`;
+    } else text = "pulling away";
     setText(inst.catchEl, text);
   }
 }
