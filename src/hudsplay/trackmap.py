@@ -316,10 +316,10 @@ class TrackMap:
 
 
 class DeltaPaint:
-    """Per ~10 m of track: [delta at the end of the piece, change of |delta| across it].
+    """Per ~10 m of track: [delta at the end of the piece, change of delta across it].
 
-    Same semantics as the delta bar: sign of delta picks green/red, growing vs
-    shrinking |delta| picks bright vs faded. Current lap + previous lap.
+    Same semantics as the delta bar: the change picks green (time gained, < 0) or red
+    (time lost), its size per metre the intensity. Current lap + previous lap.
     """
 
     def __init__(self, track_len_m: float | None = None):
@@ -348,7 +348,7 @@ class DeltaPaint:
                 and self.last_delta is not None
             ):
                 end = self.last_delta
-                self.cur[self.seg] = [round(end, 3), round(abs(end) - abs(self.seg_start), 4)]
+                self.cur[self.seg] = [round(end, 3), round(end - self.seg_start, 4)]
             self.seg, self.seg_start = seg, delta
         if laps_done != self.lap:
             if self.lap is not None:

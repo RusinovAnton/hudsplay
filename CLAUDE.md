@@ -27,7 +27,7 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
   Relative widget still uses iRacing's convention: ahead "-", behind "+".
 - Delta bar: side = sign, color = direction right now (green while the delta falls, even
   when still +; red while it rises, even when still -), intensity = rate of change.
-  The delta number itself stays colored by sign.
+  The delta number stays colored by sign, its intensity = rate of change too.
 - Python is managed by uv only (`uv run`, `uv sync`); never system Python or `python -m venv`.
 
 ## Packaging
@@ -78,8 +78,9 @@ or a small self-crossing loop are never saved; a saved map with a loop is re-rec
 Tray "Track map" submenu (polls `/api/map`): re-record next lap (old map kept as
 `.prev.json`), report on GitHub when the re-record came out the same, share maps the
 app doesn't ship (copied to `maps-to-share/`, opens GitHub's upload page = fork + PR). Painted
-every ~10 m green/red by delta gained/lost vs `delta_reference` (same reference as
-the delta bar). Car dots from lap %.
+every ~10 m like the delta bar: green where time was gained in that piece, red where lost
+(vs `map_paint_reference`), intensity = how fast; paint fades with age to 50% a lap later,
+so this lap (behind me) stands out from last lap (ahead). Car dots from lap %.
 
 Map has a follow mode (edit mode -> select map -> "follow me" + "follow range"):
 centred on me, rotated heading-up, paint drawn uncached for visible pieces only.

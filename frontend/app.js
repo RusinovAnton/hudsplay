@@ -51,7 +51,7 @@ function setText(el, text, cls) {
 // where it's heading right now: green while the delta is falling (gaining time, even
 // when still behind the reference), red while it's rising (losing time, even when
 // still ahead). Intensity = how fast it's changing.
-const BAR_RATE_FULL = { best: 0.15, rival: 0.08 }; // s/s of delta change for full intensity
+const BAR_RATE_FULL = { best: 0.08, rival: 0.08 }; // s/s of delta change for full intensity
 const BAR_MIN_ALPHA = 0.25;
 const BAR_FLIP_RATE = 0.01; // s/s: below this the color holds (no flicker when steady)
 
@@ -401,6 +401,10 @@ function renderDelta(d) {
       if (d.ref) setText(w.el.querySelector(".title"), `// Δ ${d.ref}`);
       setText(w.v, d.best == null ? "–" : fmtSigned(d.best), d.best == null ? "" : d.best < 0 ? "good" : "bad");
       w.bar.set(d.best);
+      // number: hue by sign, intensity by how fast the delta is changing (like the bar)
+      const k = d.best == null ? 0 : Math.min(1, Math.abs(w.bar.rate) / w.bar.rateFull);
+      w.v.style.color = d.best == null ? ""
+        : `color-mix(in srgb, var(${d.best < 0 ? "--c-good" : "--c-bad"}) ${Math.round(35 + 65 * k)}%, var(--c-fg))`;
     } else if (w.kind === "ahead") {
       w.el.classList.toggle("idle", gone(w, d.ahead));
       renderRival(w, d.ahead, UP);
@@ -578,8 +582,11 @@ function renderRadar(r) {
 
 // ---------------------------------------------------------------- map
 
-// |delta| change per metre for full paint intensity (bar: 0.15 s/s at ~50 m/s)
-const PAINT_FULL_S_PER_M = 0.003;
+// delta change per metre for full paint intensity (bar: 0.08 s/s at ~50 m/s)
+const PAINT_FULL_S_PER_M = 0.0016;
+// paint fades with age: fresh paint full, a lap old PAINT_OLD_ALPHA, so this lap's paint
+// behind me stands out from last lap's ahead of me even at the same intensity
+const PAINT_OLD_ALPHA = 0.5;
 const mapCache = { version: -1, points: null };
 const mapView = { heading: null };
 const MAP_ROAD_W = 11; // px, base track
@@ -590,9 +597,9 @@ const MAP_HEADING_LOOK = 0.004; // lap % either side used to measure my heading
 const MAP_ROTATE_EASE = 0.2; // per-frame easing of the follow rotation
 
 // ---------- map paint: smooth gradient
-// Each ~10 m piece gets a signed strength (sign of delta = green/red side, delta-bar
-// intensity rule for strength), then it's blurred along the track so colors flow
-// into each other. Rendered to an offscreen canvas only when the paint changes.
+// Each ~10 m piece gets a signed strength, like the delta bar: time gained in that piece =
+// green, lost = red, stronger the faster it went. Then it's blurred along the track so
+// colors flow into each other. Rendered to an offscreen canvas only when the paint changes.
 const PAINT_BLUR_M = 60; // gaussian sigma along the track
 const paintCache = { key: "", canvas: null };
 
@@ -609,11 +616,11 @@ function smoothPaint(paint, segLen, paintNow) {
   const fullStep = PAINT_FULL_S_PER_M * segLen;
   for (let k = 0; k < S; k++) {
     const p = paint[k];
-    if (!p || p[0] === 0) continue;
+    if (!p || p[1] == null) continue;
+    // p[1] = delta change across the piece: < 0 gained (green), > 0 lost (red)
     const kk = Math.max(-1, Math.min(1, p[1] / fullStep));
-    const strength = BAR_MIN_ALPHA + (1 - BAR_MIN_ALPHA) * (kk + 1) / 2;
-    // pieces not driven yet this lap keep last lap's color at full strength
-    raw[k] = { v: (p[0] < 0 ? -1 : 1) * strength, w: 1 };
+    const strength = BAR_MIN_ALPHA + (1 - BAR_MIN_ALPHA) * Math.abs(kk);
+    raw[k] = { v: (p[1] < 0 ? -1 : 1) * strength, w: 1 };
   }
   const sigma = Math.max(1, PAINT_BLUR_M / segLen);
   const R = Math.ceil(sigma * 2.5);
@@ -643,7 +650,7 @@ function drawPaint(ctx, m, at, W, H, follow) {
       paintCache.followKey = `${m.version}|${m.paintNow}|${S}`;
       paintCache.sm = smoothPaint(paint, m.segLen, m.paintNow);
     }
-    strokePaint(ctx, paintCache.sm, S, at, (x, y) => x > -20 && y > -20 && x < W + 20 && y < H + 20);
+    strokePaint(ctx, paintCache.sm, S, at, (x, y) => x > -20 && y > -20 && x < W + 20 && y < H + 20, m.paintNow);
     return;
   }
   const dpr = window.devicePixelRatio || 1;
@@ -656,12 +663,12 @@ function drawPaint(ctx, m, at, W, H, follow) {
     const o = off.getContext("2d");
     o.setTransform(dpr, 0, 0, dpr, 0, 0);
     o.clearRect(0, 0, W, H);
-    strokePaint(o, smoothPaint(paint, m.segLen, m.paintNow), S, at, () => true);
+    strokePaint(o, smoothPaint(paint, m.segLen, m.paintNow), S, at, () => true, m.paintNow);
   }
   ctx.drawImage(paintCache.canvas, 0, 0, W, H);
 }
 
-function strokePaint(o, sm, S, at, visible) {
+function strokePaint(o, sm, S, at, visible, now) {
     o.lineWidth = MAP_PAINT_W;
     o.lineCap = "butt"; // round caps would stack alpha at every joint
     const good = hexRgb(colors["--c-good"]), bad = hexRgb(colors["--c-bad"]), mid = hexRgb(colors["--c-muted"]);
@@ -670,7 +677,10 @@ function strokePaint(o, sm, S, at, visible) {
       if (!p) return null;
       const t = Math.min(1, Math.abs(p.v));
       const [r, g, b] = mixRgb(mid, p.v < 0 ? good : bad, Math.min(1, t * 1.4));
-      return `rgba(${r},${g},${b},${((0.25 + 0.75 * t) * p.dim * p.cover).toFixed(3)})`;
+      // laps since this piece was painted: just behind me ~0, just ahead of me ~1
+      const age = now == null ? 0 : (((now - k) % S) + S) % S / S;
+      const fade = 1 - (1 - PAINT_OLD_ALPHA) * age;
+      return `rgba(${r},${g},${b},${((0.25 + 0.75 * t) * p.dim * p.cover * fade).toFixed(3)})`;
     };
     for (let k = 0; k < S; k++) {
       const c0 = colorAt(k), c1 = colorAt(k + 1);
@@ -1223,8 +1233,8 @@ const THEMES = {
   "Dark+": themeFrom({
     bg: "#1e1e1e", border: "#3c3c3c", fg: "#d4d4d4", muted: "#808080", comment: "#6a9955",
     blue: "#569cd6", num: "#b5cea8", orange: "#ce9178", cyan: "#9cdcfe", yellow: "#dcdcaa",
-    purple: "#c586c0", gold: "#ffd700", red: "#f14c4c", green: "#23d18b", lapDown: "#3794ff",
-    warn: "#cca700", teal: "#4fc1ff", car: "#9e9e9e", danger: "#ff2d2d",
+    purple: "#c586c0", gold: "#ffd700", red: "#ff5533", green: "#8fd448", lapDown: "#3794ff",
+    warn: "#cca700", teal: "#4fc1ff", car: "#9e9e9e", danger: "#ff3d1f",
   }),
   "One Dark Pro": themeFrom({
     bg: "#282c34", border: "#3e4451", fg: "#abb2bf", muted: "#5c6370", comment: "#7f848e",
