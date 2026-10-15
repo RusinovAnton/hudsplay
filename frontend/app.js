@@ -170,6 +170,13 @@ function renderPit(p) {
   setText($("pit-text"), missing ? "limiter off" : "pit limiter");
 }
 
+// a rival spun / crawling ahead: "spun ahead · 180 m", hidden otherwise
+function renderHazard(s) {
+  const h = s.hazard;
+  $("w-hazard").classList.toggle("idle", !h);
+  if (h) setHtml($("hz-text"), `${h.kind === "spun" ? "spun ahead" : "slow car ahead"} <span class="dist">· ${h.dist} m</span>`);
+}
+
 function renderLaps(l) {
   const pb = l.last != null && l.best != null && Math.abs(l.last - l.best) < 0.0005;
   setText($("l-last"), fmtLap(l.last), pb ? "good" : "");
@@ -183,6 +190,9 @@ function renderFuel(f) {
     fill.style.width = `${step(Math.min(f.level / f.capacity, 1) * 100, 0.5)}%`;
     const lapsLeft = f.lapsLeft ?? Infinity;
     fill.className = "tank-fill" + (lapsLeft < 2 ? " bad" : lapsLeft < 4 ? " warn" : "");
+    // live burn vs usual: bright flat out, dim while lifting / saving (full when unknown)
+    const burn = f.burn == null ? 1 : Math.min(Math.max((f.burn - 0.3) / 1.0, 0), 1);
+    fill.style.opacity = step(0.3 + 0.7 * burn, 0.05).toFixed(2);
     // marker = fuel needed from here to the flag
     const needed = f.toFinish == null ? null : f.level + f.toFinish;
     const show = needed != null && needed > 0 && needed <= f.capacity;
@@ -273,6 +283,8 @@ function renderStandings(rows) {
     el.row.classList.toggle("leader", !!r.leader); // pinned P1, not next to me
     el.row.classList.toggle("pit", r.inPit);
     el.row.classList.toggle("talking", !!r.radio);
+    el.row.classList.toggle("trouble", !!r.trouble); // spun (flashing) / crawling (steady)
+    el.row.classList.toggle("spun", r.trouble === "spun");
     el.row.classList.toggle("lap-up", r.lapRel > 0);
     el.row.classList.toggle("lap-down", r.lapRel < 0);
     setText(el.pos, r.pos > 0 ? `P${r.pos}` : "–");
@@ -363,6 +375,7 @@ const STATUS_HOLD_MS = 1200; // new status must be stable this long before it sh
 const CLOSING_SMOOTH_S = 5; // closing speed (s/lap) is smoothed this much...
 const STATUS_NUM_MS = 3000; // ...and a new 0.1 s/lap value must hold this long to show
 
+const TROUBLE_FLASH_MS = 300; // spun car: map ring and relative row flash at this rate
 const RIVAL_SWAP_MS = 250; // a different car in the widget: quick fade so a pass reads as one
 
 function renderRival(w, r, arrow) {
@@ -495,7 +508,7 @@ function pct(value, fallback) {
 
 function refreshColors() {
   const cs = getComputedStyle(root);
-  for (const k of ["--c-bg", "--c-border", "--c-me", "--c-muted", "--c-radar-car", "--c-radar-danger", "--c-fg", "--c-good", "--c-bad", "--c-neutral", "--c-ahead", "--c-behind", "--c-lap-up", "--c-lap-down",
+  for (const k of ["--c-bg", "--c-border", "--c-me", "--c-muted", "--c-radar-car", "--c-radar-danger", "--c-fg", "--c-good", "--c-bad", "--c-neutral", "--c-ahead", "--c-behind", "--c-lap-up", "--c-lap-down", "--c-hazard",
     "--c-lic-r", "--c-lic-d", "--c-lic-c", "--c-lic-b", "--c-lic-a", "--c-lic-p"]) {
     colors[k] = cs.getPropertyValue(k).trim();
   }
@@ -917,10 +930,19 @@ function renderMap(m) {
   // stands out on the paint
   const radius = { 0: 4.5, 1: 6.5, 2: 3.5 };
   const cars = [...(m.cars || [])].sort((a, b) => (a[1] === 1) - (b[1] === 1));
-  for (const [pct, kind, clsColor, lapRel] of cars) {
+  // a car in trouble gets a hazard ring: flashing when spun, steady when crawling
+  const flashOn = Math.floor(performance.now() / TROUBLE_FLASH_MS) % 2 === 0;
+  for (const [pct, kind, clsColor, lapRel, trouble] of cars) {
     const [x, y] = at(pct);
     if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue;
     const r = radius[kind] ?? radius[0];
+    if (trouble && (trouble !== "spun" || flashOn)) {
+      ctx.beginPath();
+      ctx.arc(x, y, r + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = colors["--c-hazard"];
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
     const lapped = kind !== 1 && lapRel ? (lapRel > 0 ? "--c-lap-up" : "--c-lap-down") : "";
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -957,6 +979,7 @@ function frame() {
       [renderFuel, state.fuel],
       [renderIncidents, state.incidents],
       [renderPit, state.pit],
+      [renderHazard, state],
       [renderLaps, state.laps],
       [renderDelta, state.delta],
       // canvases of switched-off widgets (display: none outside edit mode) aren't drawn
@@ -992,6 +1015,7 @@ const DEFAULT_LAYOUT = {
   laps: { x: 10, y: 50 },
   "incident-alert": { x: 44, y: 40 },
   pit: { x: 44, y: 33 },
+  hazard: { x: 44, y: 26 },
 };
 
 // widgets switched off stay visible (dimmed) in edit mode, each with an on/off switch
@@ -1310,6 +1334,7 @@ const THEME_VARS = [
   ["--c-neutral", "steady (between gain and loss)"],
   ["--c-warn", "warning"],
   ["--c-limiter", "pit limiter"],
+  ["--c-hazard", "car in trouble ahead"],
   ["--c-fuel", "fuel"],
   ["--c-incidents", "incident alert points"],
   ["--c-clock", "clock"],

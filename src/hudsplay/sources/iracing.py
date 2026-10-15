@@ -17,6 +17,7 @@ TELEMETRY_VARS = (
     "OnPitRoad",
     "EngineWarnings",
     "FuelLevel",
+    "FuelUsePerHour",
     "LapDeltaToSessionBestLap",
     "LapDeltaToSessionBestLap_OK",
     "LapDeltaToBestLap",
@@ -40,6 +41,7 @@ TELEMETRY_VARS = (
     "LapLastLapTime",
     "LapBestLapTime",
     "CarIdxOnPitRoad",
+    "CarIdxTrackSurface",
     "RadioTransmitCarIdx",
 )
 INFO_KEYS = ("DriverInfo", "WeekendInfo", "SessionInfo", "SplitTimeInfo")

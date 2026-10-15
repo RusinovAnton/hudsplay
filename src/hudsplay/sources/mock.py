@@ -132,6 +132,9 @@ DRIVERS = [
 ]
 
 
+SPIN_EVERY_S = 45  # a car ahead of me spins this often
+SPIN_FOR_S = 4  # and is in trouble this long
+
 class MockSource:
     focus_check = False  # no sim window to be in front of: never fade the widgets
 
@@ -160,6 +163,7 @@ class MockSource:
         self.fuel = 52.0
         self.t0 = time.monotonic()
         self.prev_now: float | None = None
+        self.spin_car: int | None = None  # the car that's spinning right now (see read)
         self.info = {
             "DriverInfo": {
                 "DriverCarIdx": PLAYER,
@@ -223,8 +227,22 @@ class MockSource:
         n = len(DRIVERS)
         old = list(self.prog)
 
+        # every 45 s the nearest car ahead of me spins: rolls back a bit, then sits still
+        # off track for a few seconds (the "spun ahead" alert)
+        phase = now % SPIN_EVERY_S
+        if phase < SPIN_FOR_S and self.spin_car is None:
+            p0 = self.prog[PLAYER]
+            ahead = [(((self.prog[i] - p0) % 1), i) for i in range(n) if i != PLAYER and i not in PINNED]
+            ahead = [x for x in ahead if 0 < x[0] < 0.08]
+            self.spin_car = min(ahead)[1] if ahead else None
+        elif phase >= SPIN_FOR_S:
+            self.spin_car = None
         for i in range(n):
             if i in PINNED:
+                continue
+            if i == self.spin_car:
+                if phase < 1.2:
+                    self.prog[i] -= dt * 10 / TRACK_LEN_M  # rolling back at ~10 m/s
                 continue
             noise = 1 + self.rng.uniform(-0.01, 0.01)
             self.prog[i] += dt / (BASE_LAP * self.pace[i]) * self._speed(self.prog[i]) * noise
@@ -301,6 +319,8 @@ class MockSource:
             # pit limiter (irsdk_pitSpeedLimiter) on for 6 s every 40 s, to see the widget
             "EngineWarnings": 0x10 if now % 40 < 6 else 0,
             "FuelLevel": self.fuel,
+            # live burn like real driving: full throttle bursts, lifting / braking between
+            "FuelUsePerHour": 90.0 * (0.12 + 0.88 * max(0.0, math.sin(2 * math.pi * now / 7))),
             "LapDeltaToSessionBestLap": delta,
             "LapDeltaToSessionBestLap_OK": True,
             "LapDeltaToSessionLastlLap": delta_last,
@@ -317,6 +337,8 @@ class MockSource:
             "LapLastLapTime": self.last_lap[PLAYER],
             "LapBestLapTime": self.best_lap[PLAYER],
             "CarIdxOnPitRoad": pad([False] * n, False),
+            # irsdk_TrkLoc: 3 on track, 0 off track (the spinning car)
+            "CarIdxTrackSurface": pad([0 if i == self.spin_car else 3 for i in range(n)], -1),
             # a car near the player talks for 3 s every 10 s
             "RadioTransmitCarIdx": (RADAR_RIGHT, -1, -1, RADAR_LEFT, -1, PLAYER, -1)[int(now // 10) % 7]
             if now % 10 < 3

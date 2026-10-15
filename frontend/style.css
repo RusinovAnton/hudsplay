@@ -112,6 +112,25 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 }
 #w-incident-alert .alert-icon { color: var(--c-incidents); }
 
+/* ---------- hazard: a rival spun / crawling ahead (like a spotter's call) */
+#w-hazard {
+  font-weight: 500;
+  color: var(--c-hazard);
+  transition: opacity 0.3s;
+}
+#w-hazard.idle { opacity: 0; }
+body.edit #w-hazard.idle { opacity: var(--w-opacity, 1); }
+#w-hazard .dist { color: var(--c-fg); font-weight: 400; }
+/* that car's row in the relative: steady when crawling, flashing when spun */
+.srow.trouble { background: color-mix(in srgb, var(--c-hazard) 20%, transparent); }
+.srow.trouble.spun { animation: trouble-flash 0.6s steps(1) infinite; }
+@keyframes trouble-flash {
+  50% { background: color-mix(in srgb, var(--c-hazard) 45%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .srow.trouble.spun { animation: none; background: color-mix(in srgb, var(--c-hazard) 40%, transparent); }
+}
+
 /* ---------- pit limiter: shows while it's on, or red on pit road without it */
 #w-pit {
   font-weight: 500;

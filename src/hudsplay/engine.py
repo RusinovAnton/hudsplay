@@ -38,6 +38,14 @@ INCIDENT_MERGE_S = 2.5  # iRacing escalates in steps (1x -> 2x): merge into one 
 INCIDENT_ALERT_S = 4.0  # the "contact 4x" alert shows this long after the last step
 GAIN_TAU_S = 1.0  # smoothing of the "gaining right now" rate on the ▲/▼ widgets
 CLOSING_WINDOW_LAPS = 0.15  # ▲/▼ "catching in N laps" uses the gap change over this much lap
+# a rival in trouble ahead (spun / crawling), see _hazard
+HAZARD_AHEAD_M = 500.0  # warn about trouble up to this far ahead of me
+SLOW_FRAC = 0.2  # slower than this x the lap-average speed = crawling
+SLOW_HOLD_S = 1.0  # ...for at least this long (a slow hairpin isn't trouble)
+BACKWARDS_MS = -2.0  # rolling backwards faster than this (m/s) = spun
+SPEED_TAU_S = 0.3  # smoothing of each car's speed
+BURN_NOW_TAU_S = 0.5  # live fuel burn: current rate smoothed this much...
+BURN_AVG_TAU_S = 60.0  # ...compared with the average over about this long
 SIDE_HOLD_M = 4.0  # a car alongside keeps its side (ahead / behind) until this far past me
 PIT_LIMITER_BIT = 0x10  # irsdk_EngineWarnings: irsdk_pitSpeedLimiter
 SPOTTER_SIDES = {2: ["L"], 3: ["R"], 4: ["L", "R"], 5: ["L", "L2"], 6: ["R", "R2"]}
@@ -297,11 +305,14 @@ class Engine:
         self.tracks: dict[int, CarTrack] = {}
         self._on_pit: dict[int, bool] = {}  # last frame's CarIdxOnPitRoad (pit exit = re-align)
         self.fuel = FuelCalc()
+        self.burn: list = [None, None, None, 0.0]  # FuelUsePerHour: [time, now-smoothed, average, seconds averaged]
         self.incidents = IncidentLog()
         self.optimal = OptimalLap(getattr(self, "sector_starts", None))
         self.trends: dict[tuple[int, bool], dict[int, float]] = {}
         self.gains: dict[tuple[int, bool], list[float]] = {}  # [time, g, smoothed rate]
         self.radar_sides: dict[int, str] = {}
+        self.motion: dict[int, list] = {}  # per car: [progress, time, speed m/s, slow since]
+        self.trouble: dict[int, str] = {}  # per car in trouble: 'spun' / 'slow'
         self.held_ahead: dict[int, bool] = {}  # side per car, held while alongside (_held_ahead)
         self.positions: dict[int, int] = {}  # this frame's position per car (relative / ▲▼)
         self.start_pos: int | None = None
@@ -401,6 +412,7 @@ class Engine:
         me = t.get("PlayerCarIdx", self.player_idx)
         self._advance_tracks(t, now)
 
+        self.hazard = self._hazard(t, me, now)
         session, laps_to_go = self._session(t, me)
         standings, pos, cars = self._standings(t, me, now, session["race"], session["standings"])
         ahead, behind = (None, None) if session["qualify"] else self._neighbours(t, me)
@@ -421,6 +433,7 @@ class Engine:
             "fuel": self._fuel(t, me, laps_to_go),
             "incidents": self._incidents(t, now),
             "pit": self._pit(t),
+            "hazard": self.hazard,
             "laps": self._laps(t, me),
             "delta": {
                 "best": _r(delta),
@@ -454,7 +467,7 @@ class Engine:
         self.paint.update(pct, laps_done, delta if clean else None)
 
         on_pit = t.get("CarIdxOnPitRoad") or []
-        # [pct, kind, class color, lapRel]: kind 0 car, 1 me, 2 in pit;
+        # [pct, kind, class color, lapRel, trouble]: kind 0 car, 1 me, 2 in pit;
         # lapRel +1 = a lap up on me, -1 = a lap down (race only)
         my = self.tracks.get(me)
         cars = []
@@ -464,7 +477,7 @@ class Engine:
             if race and my is not None and idx != me:
                 lap_rel = round(tr.progress - my.progress - self._track_dp(t, idx, me))
             d = self.drivers.get(idx)
-            cars.append([round(pcts[idx], 4), kind, d["clsColor"] if d else None, lap_rel])
+            cars.append([round(pcts[idx], 4), kind, d["clsColor"] if d else None, lap_rel, self.trouble.get(idx)])
 
         out = {
             "version": self.map.version,
@@ -501,11 +514,29 @@ class Engine:
             tr = self.tracks.get(idx)
             lc = laps[idx] if idx < len(laps) else -1
             if tr is None:
-                self.tracks[idx] = CarTrack(max(lc, 0), pct, now)
+                self.tracks[idx] = tr = CarTrack(max(lc, 0), pct, now)
+                self.motion.pop(idx, None)
             else:
                 tr.advance(pct, now)
-                if tr.resync(lc, pct, force=everyone or idx in exited) and idx == me:
-                    self.trends.clear()  # keyed by my progress: history no longer lines up
+                if tr.resync(lc, pct, force=everyone or idx in exited):
+                    self.motion.pop(idx, None)  # progress jumped a lap: not real speed
+                    if idx == me:
+                        self.trends.clear()  # keyed by my progress: history no longer lines up
+            self._track_speed(idx, tr, now)
+
+    def _track_speed(self, idx: int, tr: "CarTrack", now: float) -> None:
+        """Each car's speed along the track (m/s, smoothed), from its lap progress;
+        negative when it rolls backwards."""
+        m = self.motion.get(idx)
+        if m is None or not self.track_len:
+            self.motion[idx] = [tr.progress, now, None, None]
+            return
+        dt = now - m[1]
+        if dt <= 0:
+            return
+        v = (tr.progress - m[0]) / dt * self.track_len
+        m[2] = v if m[2] is None else m[2] + (v - m[2]) * min(1.0, dt / SPEED_TAU_S)
+        m[0], m[1] = tr.progress, now
 
     def _pace(self, t: dict, idx: int) -> float:
         for key in ("CarIdxLastLapTime", "CarIdxBestLapTime"):
@@ -730,6 +761,7 @@ class Engine:
                 "inPit": bool(on_pit[idx]) if idx < len(on_pit) else False,
                 "radio": idx == talking,
                 "tire": tires.get(compounds[idx]) if idx < len(compounds) else None,
+                "trouble": self.trouble.get(idx),
             }
 
         return row
@@ -887,6 +919,44 @@ class Engine:
             "catchAfterFlag": bool(catch is not None and laps_to_go is not None and catch > laps_to_go),
         }
 
+    def _hazard(self, t: dict, me: int, now: float) -> dict | None:
+        """Rivals in trouble, like a spotter's "car spun ahead": a car rolling backwards, or
+        off track and crawling, has spun; one crawling on track for SLOW_HOLD_S is slow.
+        Cars on pit road / in their stall are ignored, so is everything before the green
+        (cars stand still on the grid). Returns the nearest one up to HAZARD_AHEAD_M ahead."""
+        self.trouble = {}
+        if (t.get("SessionState") or 0) < 4 or not self.track_len or me not in self.tracks:
+            return None
+        surface = t.get("CarIdxTrackSurface") or []
+        on_pit = t.get("CarIdxOnPitRoad") or []
+        crawl = SLOW_FRAC * self.track_len / self.est_lap  # m/s
+        nearest = None
+        for idx, m in self.motion.items():
+            if idx == me or idx not in self.drivers or m[2] is None:
+                continue
+            surf = surface[idx] if idx < len(surface) else 3  # irsdk_TrkLoc, 3 = on track
+            if surf in (1, 2) or (idx < len(on_pit) and on_pit[idx]):  # pit stall / pit lane
+                m[3] = None
+                continue
+            slow = m[2] < crawl
+            m[3] = (m[3] or now) if slow else None
+            kind = None
+            if m[2] < BACKWARDS_MS or (surf == 0 and slow):  # 0 = off track
+                kind = "spun"
+            elif slow and now - m[3] >= SLOW_HOLD_S:
+                kind = "slow"
+            if kind is None:
+                continue
+            self.trouble[idx] = kind
+            dist = self._track_dp(t, idx, me) * self.track_len
+            if 0 < dist <= HAZARD_AHEAD_M and (nearest is None or dist < nearest[0]):
+                nearest = (dist, idx, kind)
+        if nearest is None:
+            return None
+        dist, idx, kind = nearest
+        d = self.drivers[idx]
+        return {"kind": kind, "dist": round(dist), "num": d["num"], "name": d["name"]}
+
     def _pit(self, t: dict) -> dict:
         """Pit limiter on/off (EngineWarnings bit), and whether I'm on pit road moving
         (limiter off there = speeding penalty)."""
@@ -909,6 +979,30 @@ class Engine:
         last, best = pos(t.get("LapLastLapTime")), pos(t.get("LapBestLapTime"))
         return {"last": _r(last), "best": _r(best), "optimal": _r(self.optimal.time)}
 
+    def _burn(self, t: dict) -> float | None:
+        """Live fuel burn vs my usual: FuelUsePerHour smoothed over ~0.5 s divided by its
+        average over ~a minute. 1 = usual, > 1 flat out, < 1 lifting / saving. Only while
+        driving on track (not on pit road)."""
+        rate = t.get("FuelUsePerHour")
+        now = t.get("SessionTime") or 0.0
+        b = self.burn
+        if rate is None or not t.get("IsOnTrack", True) or t.get("OnPitRoad"):
+            b[0] = None
+            return None
+        if b[0] is None or b[1] is None:
+            b[0], b[1] = now, rate
+            b[2] = b[2] if b[2] is not None else rate
+            return None
+        dt = max(0.0, min(now - b[0], 1.0))
+        b[0] = now
+        b[1] += (rate - b[1]) * (1 - math.exp(-dt / BURN_NOW_TAU_S))
+        # the average is a plain running mean until it has BURN_AVG_TAU_S of driving, so
+        # it's right from the first lap instead of starting at whatever the first reading was
+        b[3] += dt
+        tau = min(BURN_AVG_TAU_S, max(b[3], dt, 1e-3))
+        b[2] += (rate - b[2]) * (dt / tau if b[3] < BURN_AVG_TAU_S else 1 - math.exp(-dt / tau))
+        return _r(b[1] / b[2], 2) if b[2] and b[2] > 0 else None
+
     def _fuel(self, t: dict, me: int, laps_to_go: float | None) -> dict:
         level = t.get("FuelLevel")
         done = t.get("CarIdxLapCompleted") or []
@@ -917,6 +1011,7 @@ class Engine:
         laps_left = level / per_lap if level is not None and per_lap else None
         to_finish = laps_to_go * per_lap - level if per_lap and laps_to_go is not None and level is not None else None
         return {
+            "burn": self._burn(t),
             "level": _r(level, 2),
             "capacity": _r(self.fuel_capacity, 2),
             "perLap": _r(per_lap),

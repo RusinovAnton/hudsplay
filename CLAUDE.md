@@ -133,6 +133,15 @@ and "show ahead" / "show behind" (bumper gap, default 2 m / 3 m): it shows only 
 car is that close or alongside.
 Relative rows slide when order changes. Radar glow flashes at ~6 Hz when three wide.
 
+Hazard (`_hazard`): a rival rolling backwards, or off track and crawling, has spun; one
+crawling on track (< 20% of lap-average speed) for 1 s is slow (maybe damaged). Speed per
+car from its lap progress (`_track_speed`). Nearest one up to 500 m ahead -> center alert
+"spun ahead · 180 m" / "slow car ahead" (`--c-hazard`); its relative row and map dot get
+a hazard tint / ring, flashing when spun. Off before the green. Mock spins the car ahead
+every 45 s.
+Fuel: tank bar brightness = live burn (FuelUsePerHour) vs my average over ~1 min (`_burn`):
+dim lifting / saving, bright flat out.
+
 Pit widget: "pit limiter" (`--c-limiter`) while EngineWarnings has irsdk_pitSpeedLimiter
 (0x10); red "limiter off" when moving on pit road without it; hidden otherwise.
 Mock turns the limiter on 6 s every 40 s.
