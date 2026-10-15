@@ -42,6 +42,7 @@
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
       "include": "assets/installer.nsh",
+      "license": "assets/license.txt",
       "artifactName": "hudsplay-setup.exe"
     }
   },

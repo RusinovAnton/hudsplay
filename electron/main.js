@@ -17,6 +17,7 @@ const DATA_DIR = app.isPackaged ? path.join(app.getPath("appData"), "HUDsplay", 
 const BACKEND_RESTART_MS = 2000;
 const REPO = "https://github.com/RusinovAnton/hudsplay";
 const MAP_POLL_MS = 3000; // tray "Track map" submenu follows the backend's current track
+const UKRAINE = "HUDsplay is made in Ukraine, while Russia wages its full-scale war against it. If you support this war or the Russian state waging it, you are not welcome to use HUDsplay. Slava Ukraini! 🇺🇦";
 
 let win;
 let tray;
@@ -225,8 +226,20 @@ function updateTray() {
     },
     { label: "Open settings folder", click: () => { fs.mkdirSync(DATA_DIR, { recursive: true }); shell.openPath(DATA_DIR); } },
     { type: "separator" },
+    { label: "About HUDsplay", click: showAbout },
     { label: "Quit", accelerator: "Ctrl+Shift+Q", click: () => app.quit() },
   ]));
+}
+
+function showAbout() {
+  dialog.showMessageBox({
+    type: "info", title: "About HUDsplay",
+    message: `HUDsplay ${app.getVersion()}`,
+    detail: `${UKRAINE}
+
+MIT licensed. Not affiliated with iRacing.com Motorsport Simulations.
+${REPO}`,
+  });
 }
 
 function createTray() {

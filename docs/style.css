@@ -265,6 +265,7 @@ footer {
   font-size: 0.9rem;
 }
 footer .small { color: var(--muted); font-size: 0.8rem; margin: 0.3rem 0 0; }
+footer .ua { max-width: 40rem; margin: 0.8rem auto 0; font-size: 0.85rem; }
 
 /* ---------- smaller screens */
 @media (max-width: 1080px) {

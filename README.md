@@ -7,6 +7,9 @@ Website: https://rusinovanton.github.io/hudsplay/ (source in `docs/`: live widge
 overlay's own CSS via `packaging/build_site.py`; this screenshot from
 `uv run python packaging/capture_screenshots.py`). MIT licensed, see [LICENSE](LICENSE).
 
+> **🇺🇦 HUDsplay is made in Ukraine**, while Russia wages its full-scale war against it.
+> If you support this war or the Russian state waging it, you are not welcome to use HUDsplay. **Slava Ukraini!** 🇺🇦
+
 ![HUDsplay overlay with mock race data at 1920x1080](docs/screenshot.png)
 
 Widgets: session (lap / estimated total, position vs grid, time left), clock,

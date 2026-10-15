@@ -21,6 +21,11 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
   window (`focus.py`, checked by the server); edit mode always shows them.
 - No pedal/input widget.
 - No flag widget: iRacing's own flags can't be hidden, so it would only duplicate them.
+- Owner is Ukrainian. Keep the "made in Ukraine / supporters of Russia's war are not
+  welcome" statement in the README, the website footer, the tray "About HUDsplay"
+  dialog (`UKRAINE` in electron/main.js) and the installer's license page
+  (`electron/assets/license.txt` = statement + LICENSE; ASCII, keep LICENSE in sync). The license stays MIT (it's a statement, not a
+  license term; MIT also keeps SignPath Foundation signing possible).
 - Arrows ▲/▼ instead of the words "ahead"/"behind" in the UI.
 - ▲/▼ widgets: gap + proximity bar + a calm status line in spotter words: "closing
   0.3 s/lap" / "closing on you 0.3 s/lap" / "pulling away 0.2 s/lap" (closing speed
