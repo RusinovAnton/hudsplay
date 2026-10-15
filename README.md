@@ -16,7 +16,7 @@ Widgets: session (lap / estimated total, position vs grid, time left), clock,
 relative (cars ±3 on track + the leader, class and lap tags, iRating on a license-colored
 badge, radio indicator; grid before the start, standings in practice/qualifying), fuel
 (tank bar, per lap, laps left, needed to finish), laps (last + optimal), incidents
-(count / next warning / DQ, alert), deltas (session best + gap and catch estimate for
+(count / warning limit / DQ limit, alert), deltas (session best + gap and catch estimate for
 the car ahead/behind), radar (cars alongside, three-wide warning), track map (recorded
 on a clean lap or shipped, painted green/red by time gained/lost, overview or follow
 mode). Color themes after popular VS Code themes, every color editable.

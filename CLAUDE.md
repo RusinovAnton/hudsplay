@@ -146,6 +146,10 @@ lines), lap-up/lap-down cars colored. The ▲/▼ delta widgets = nearest car ah
 behind on track (any class, any lap, same gap timing as the relative; cars on pit
 road skipped unless I'm on it). Title: standing position (same as the relative) + name in
 bold, a dot in the class color (multiclass), +1L/-1L when lapped. Hidden in qualifying.
+Ahead vs behind is held while a car is alongside (`_held_ahead`, SIDE_HOLD_M = 4 m):
+it only switches once the car is clearly past, so ▲/▼, relative order and gap signs don't
+flicker side by side (owner found it annoying). ▲/▼ fade briefly when their car changes;
+"closest" only switches when the other car is 0.1 s closer.
 In practice + qualifying the relative becomes "standings": every car with a time (best
 lap from live, session ResultsPositions or remembered, so pit/garage/disconnected cars
 stay), window around me, gap = their best - mine. Radar hidden in qualifying.

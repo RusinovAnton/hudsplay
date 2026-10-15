@@ -152,7 +152,9 @@ function renderIncidents(inc) {
   const limits = [inc.warn, inc.limit].filter(Boolean).map((x) => ` / ${x}x`).join("");
   setHtml(el, `${inc.count}x` + (limits ? `<span class="tot">${limits}</span>` : ""));
   // 0x gray, then ever more red toward the next limit
-  const k = Math.min(inc.count / (inc.warn || inc.limit || INCIDENT_FULL_X), 1);
+  // toward the warning limit, then (past it) toward the DQ limit
+  const target = inc.warn && inc.count <= inc.warn ? inc.warn : inc.limit || inc.warn || INCIDENT_FULL_X;
+  const k = Math.min(inc.count / target, 1);
   el.style.color = inc.count > 0
     ? `color-mix(in srgb, var(--c-bad) ${Math.round(25 + 75 * k)}%, var(--c-muted))`
     : "var(--c-muted)";
@@ -361,8 +363,15 @@ const STATUS_HOLD_MS = 1200; // new status must be stable this long before it sh
 const CLOSING_SMOOTH_S = 5; // closing speed (s/lap) is smoothed this much...
 const STATUS_NUM_MS = 3000; // ...and a new 0.1 s/lap value must hold this long to show
 
+const RIVAL_SWAP_MS = 250; // a different car in the widget: quick fade so a pass reads as one
+
 function renderRival(w, r, arrow) {
   const ahead = arrow === UP;
+  const car = r ? `${arrow}${r.num}` : null;
+  if (w.lastCar !== car) {
+    if (w.lastCar && car) w.el.animate([{ opacity: 0.2 }, { opacity: 1 }], { duration: RIVAL_SWAP_MS, easing: "ease-out" });
+    w.lastCar = car;
+  }
   if (!r) {
     setText(w.v, "–", ""); setHtml(w.titleEl, `// ${arrow}`); setText(w.catchEl, "", "");
     w.v.style.color = "";
@@ -434,6 +443,7 @@ function renderRival(w, r, arrow) {
   setText(w.catchEl, text, "");
 }
 
+const CLOSEST_HOLD_S = 0.1; // "closest" widget switches cars only when the other is this much closer
 const RIVAL_HIDE_DEFAULT_S = 10; // ▲/▼ widgets hide beyond this gap (per widget in edit mode)
 
 function renderDelta(d) {
@@ -457,8 +467,11 @@ function renderDelta(d) {
       renderRival(w, d.behind, DOWN);
     } else {
       // closest on track by time gap
+      // the nearer of the two; when both are about as close, stick with the current one
       const key = (r) => (r ? Math.abs(r.gap) : Infinity);
-      const ahead = key(d.ahead) <= key(d.behind);
+      let ahead = key(d.ahead) <= key(d.behind);
+      if (w.pickAhead != null && ahead !== w.pickAhead && Math.abs(key(d.ahead) - key(d.behind)) < CLOSEST_HOLD_S) ahead = w.pickAhead;
+      w.pickAhead = ahead;
       const r = ahead ? d.ahead : d.behind;
       w.el.classList.toggle("idle", gone(w, r));
       w.el.classList.toggle("ahead", !!r && ahead);

@@ -38,6 +38,7 @@ INCIDENT_MERGE_S = 2.5  # iRacing escalates in steps (1x -> 2x): merge into one 
 INCIDENT_ALERT_S = 4.0  # the "contact 4x" alert shows this long after the last step
 GAIN_TAU_S = 1.0  # smoothing of the "gaining right now" rate on the ▲/▼ widgets
 CLOSING_WINDOW_LAPS = 0.15  # ▲/▼ "catching in N laps" uses the gap change over this much lap
+SIDE_HOLD_M = 4.0  # a car alongside keeps its side (ahead / behind) until this far past me
 PIT_LIMITER_BIT = 0x10  # irsdk_EngineWarnings: irsdk_pitSpeedLimiter
 SPOTTER_SIDES = {2: ["L"], 3: ["R"], 4: ["L", "R"], 5: ["L", "L2"], 6: ["R", "R2"]}
 
@@ -132,20 +133,16 @@ class IncidentLog:
         alert = None
         if self.last_at is not None and now - self.last_at <= INCIDENT_ALERT_S:
             alert = {"label": INCIDENT_TYPES.get(self.last_x, "incident"), "x": self.last_x}
-        return {"count": self.count, "limit": limit, "warn": _next_warning(self.count, *warn, limit), "alert": alert}
+        return {"count": self.count, "limit": limit, "warn": _warning_limit(warn[0], limit), "alert": alert}
 
 
-def _next_warning(count: int | None, initial: int | None, every: int | None, dq: int | None) -> int | None:
-    """Next penalty warning threshold, like iRacing's "17x / 17x / 25x": the initial limit
-    until it's passed, then every `every` more. None when warnings are off or past DQ."""
+def _warning_limit(initial: int | None, dq: int | None) -> int | None:
+    """The session's penalty warning limit, shown fixed like iRacing's "17x / 17x / 25x"
+    (owner: a threshold moving with the count, then vanishing, was confusing). None when
+    warnings are off or it isn't below the DQ limit."""
     if not initial:
         return None
-    nxt = initial
-    if count is not None and count > initial:
-        if not every:
-            return None
-        nxt = initial + math.ceil((count - initial) / every) * every
-    return nxt if dq is None or nxt < dq else None
+    return initial if dq is None or initial < dq else None
 
 
 class OptimalLap:
@@ -305,6 +302,7 @@ class Engine:
         self.trends: dict[tuple[int, bool], dict[int, float]] = {}
         self.gains: dict[tuple[int, bool], list[float]] = {}  # [time, g, smoothed rate]
         self.radar_sides: dict[int, str] = {}
+        self.held_ahead: dict[int, bool] = {}  # side per car, held while alongside (_held_ahead)
         self.positions: dict[int, int] = {}  # this frame's position per car (relative / ▲▼)
         self.start_pos: int | None = None
         self.best_seen: dict[int, float] = {}  # best lap per car this session, kept after they leave
@@ -654,6 +652,17 @@ class Engine:
         t_then = my.time_at(my.progress + dp)  # I was where they are now
         return -(now - t_then) if t_then is not None else dp * self.est_lap
 
+    def _held_ahead(self, idx: int, dp: float) -> bool:
+        """Is idx ahead of me? Side by side, track distance wobbles around 0 every frame,
+        so a car keeps its last side until it's SIDE_HOLD_M clearly past: the ▲/▼ widgets
+        and the relative don't flicker between ahead and behind."""
+        hold = SIDE_HOLD_M / self.track_len if self.track_len else 0.001  # in laps
+        prev = self.held_ahead.get(idx)
+        if prev is not None and abs(dp) < hold:
+            return prev
+        self.held_ahead[idx] = dp > 0
+        return dp > 0
+
     def _neighbours(self, t: dict, me: int) -> tuple[int | None, int | None]:
         """Nearest car ahead / behind on track: any class, any lap. Cars on pit road
         only count while I'm on pit road too (a parked car isn't part of the fight)."""
@@ -666,10 +675,11 @@ class Engine:
             if idx == me or idx not in self.drivers or (pit(idx) and not pit(me)):
                 continue
             dp = self._track_dp(t, idx, me)
-            if dp > 0 and (ahead is None or dp < ahead[0]):
-                ahead = (dp, idx)
-            elif dp < 0 and (behind is None or -dp < behind[0]):
-                behind = (-dp, idx)
+            if self._held_ahead(idx, dp):
+                if ahead is None or abs(dp) < ahead[0]:
+                    ahead = (abs(dp), idx)
+            elif behind is None or abs(dp) < behind[0]:
+                behind = (abs(dp), idx)
         return ahead and ahead[1], behind and behind[1]
 
     def _best(self, t: dict, idx: int) -> float | None:
@@ -773,7 +783,7 @@ class Engine:
                 continue
             dp = pcts[idx] - pcts[me]
             dp -= round(dp)  # track distance in laps, (-0.5, 0.5], + = ahead on track
-            (ahead if dp > 0 else behind).append((abs(dp), dp, idx, tr))
+            (ahead if self._held_ahead(idx, dp) else behind).append((abs(dp), dp, idx, tr))
         n = self.cfg.standings_each_side
         ahead = sorted(ahead)[:n]
         behind = sorted(behind)[:n]
@@ -781,7 +791,9 @@ class Engine:
         def row(idx, dp, tr):
             gap, lap_rel = None, 0
             if idx != me:
-                gap = -self._track_gap(idx, me, dp, now)  # iRacing relative: ahead is "-"
+                gap = abs(self._track_gap(idx, me, dp, now))
+                if self._held_ahead(idx, dp):  # iRacing relative: ahead is "-" (held side)
+                    gap = -gap
                 if race:
                     # whole laps between us in race distance: +1 = they're a lap up on me
                     lap_rel = round(tr.progress - my.progress - dp)
@@ -815,7 +827,8 @@ class Engine:
         if idx is None or my is None or idx not in self.tracks:
             return None
         dp = self._track_dp(t, idx, me)
-        g = self._track_gap(idx, me, dp, now)
+        g = abs(self._track_gap(idx, me, dp, now))
+        g = g if is_ahead else -g  # sign of the widget's side (held while alongside)
         tr = self.tracks[idx]
         lap_rel = round(tr.progress - my.progress - dp)  # +1 = they're a lap up on me
         # history per car and side (signed gap, + = they're ahead), keyed by my absolute
