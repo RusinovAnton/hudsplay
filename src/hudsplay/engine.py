@@ -21,8 +21,9 @@ UNLIMITED_TIME = 604800.0  # iRacing reports a week for "no time limit"
 CAR_LENGTH_M = 4.8
 SIDE_BY_SIDE_M = CAR_LENGTH_M * 1.5
 
-# irsdk_CarLeftRight
-SPOTTER = {0: "off", 1: "clear", 2: "left", 3: "right", 4: "both", 5: "left2", 6: "right2"}
+# irsdk_CarLeftRight. Left/right are swapped vs the SDK enum names (2 = CarLeft):
+# in real iRacing 2 is a car on my right (verified 2026-10-15, radar was mirrored).
+SPOTTER = {0: "off", 1: "clear", 2: "right", 3: "left", 4: "both", 5: "right2", 6: "left2"}
 # delta reference -> iRacing var (each has a matching *_OK flag). "SessionLastl" is iRacing's typo.
 DELTA_VARS = {
     "session_best": ("LapDeltaToSessionBestLap", "session best"),
@@ -36,7 +37,7 @@ INCIDENT_TYPES = {1: "off-track", 2: "loss of control", 4: "contact"}
 INCIDENT_MERGE_S = 2.5  # iRacing escalates in steps (1x -> 2x): merge into one incident
 INCIDENT_ALERT_S = 4.0  # the "contact 4x" alert shows this long after the last step
 GAIN_TAU_S = 1.0  # smoothing of the "gaining right now" rate on the ▲/▼ widgets
-SPOTTER_SIDES = {2: ["L"], 3: ["R"], 4: ["L", "R"], 5: ["L", "L2"], 6: ["R", "R2"]}
+SPOTTER_SIDES = {2: ["R"], 3: ["L"], 4: ["L", "R"], 5: ["R", "R2"], 6: ["L", "L2"]}
 
 
 class CarTrack:

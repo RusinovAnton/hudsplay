@@ -141,7 +141,7 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 .srow {
   will-change: transform;
   display: grid;
-  grid-template-columns: 4.5ch 4ch 5ch 1.35em 16ch 1.1em 4ch 8ch 8ch;
+  grid-template-columns: 4.5ch 4ch 5ch 1.35em 16ch 1.1em 6ch 8ch 8ch;
   column-gap: 1ch;
   align-items: center;
   padding: 0 0.4em;
@@ -192,9 +192,14 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
   border-color: color-mix(in srgb, var(--badge) 60%, transparent);
 }
 /* class short name or lap up/down tag */
+/* long class names are clipped so they never run into the lap time */
 .srow .tag {
   font-size: 0.8em;
   text-align: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .srow .tag.lap-up { color: var(--c-lap-up); font-weight: 500; }
 .srow .tag.lap-down { color: var(--c-lap-down); font-weight: 500; }

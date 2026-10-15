@@ -253,13 +253,14 @@ class MockSource:
             if abs(d) * TRACK_LEN_M < 4.8:
                 alongside.append(PINNED.get(i, "L" if i % 2 == 0 else "R"))
         n_left, n_right = alongside.count("L"), alongside.count("R")
-        # irsdk_CarLeftRight: 1 clear, 2 left, 3 right, 4 both, 5 two left, 6 two right
+        # CarLeftRight as real iRacing sends it: 1 clear, 2 right, 3 left, 4 both,
+        # 5 two right, 6 two left (see SPOTTER in engine.py)
         if n_left and n_right:
             lr = 4
         elif n_left:
-            lr = 2 if n_left == 1 else 5
+            lr = 3 if n_left == 1 else 6
         elif n_right:
-            lr = 3 if n_right == 1 else 6
+            lr = 2 if n_right == 1 else 5
         else:
             lr = 1
 
