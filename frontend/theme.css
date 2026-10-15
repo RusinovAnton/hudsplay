@@ -28,6 +28,7 @@
 
   --c-good: #8fd448;
   --c-bad: #ff5533;
+  --c-neutral: #ebe5d6; /* bone white: steady, between gain and loss */
   --c-warn: #cca700;
   --c-fuel: #4fc1ff;
   --c-incidents: #ce9178;

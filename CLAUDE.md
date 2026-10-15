@@ -11,7 +11,7 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
   relative gaps, ▲/▼ and radar (dimmed). Don't add per-widget copies.
 - Map car dots: class color (pit = muted), lap-up / lap-down cars get a --c-lap-up red /
   --c-lap-down blue ring. No ahead/behind coloring on the map.
-- Color themes: presets after popular VS Code themes (`THEMES` in app.js, Dark+ default =
+- Color themes: presets after popular VS Code themes (`THEMES` in frontend/themes.js, shared with the website; Dark+ default =
   `theme.css`), picked first in edit mode -> colors; custom colors are saved per theme
   (localStorage `overlay.colors.v2`), "reset colors" drops them for the current theme.
   Every theme uses its most vivid red/green for gain/loss.
@@ -26,8 +26,9 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
   losing only changes saturation (full color = gaining, washed to --c-fg gray = losing).
   Relative widget still uses iRacing's convention: ahead "-", behind "+".
 - Delta bar: side = sign, color = direction right now (green while the delta falls, even
-  when still +; red while it rises, even when still -), intensity = rate of change.
-  The delta number stays colored by sign, its intensity = rate of change too.
+  when still +; red while it rises, even when still -), on a 3-color scale by rate of
+  change: red - bone white (`--c-neutral`, steady) - green. Map paint uses the same scale.
+  The delta number stays colored by sign, fading to bone white when steady.
 - Python is managed by uv only (`uv run`, `uv sync`); never system Python or `python -m venv`.
 
 ## Packaging
@@ -47,10 +48,19 @@ read-only app files, `config.DATA` = user files (repo root in dev,
 ## Website
 
 Landing page in `docs/` (GitHub Pages from `default` → `/docs`, https://rusinovanton.github.io/hudsplay/).
-Plain HTML/CSS, editor look, no build step. Screenshots + social card come from
-`uv run python packaging/capture_screenshots.py` (mock race via headless Chrome/Edge,
-also stamps image sizes into `docs/index.html`); rerun it after UI changes. The mock
-track is the real Monza outline (bacinger/f1-circuits, MIT, attribution in `mock.py`).
+Plain HTML/CSS/JS, editor look. No screenshots on the site (they looked bad on small
+screens and can't follow a theme): it shows **live widgets**, the overlay's own markup
+and CSS driven by a fake race in `docs/live.js` (templates mirror `frontend/index.html`
++ app.js markup, keep them in sync). `packaging/build_site.py` copies the overlay CSS
+into `docs/hud/hud.css` scoped under `.hud`, plus `theme.css`, `themes.js` and the Monza
+outline; rerun it after changing overlay CSS, themes or widget markup. The theme picker
+(titlebar + the embedded real edit panel) applies `THEMES` to the whole page: the site's
+own colors are derived from the theme vars in `docs/style.css`. Layout must fit 375px
+(the relative scales down). The README screenshot (`docs/screenshot.png`) + social card
+come from `uv run python packaging/capture_screenshots.py` (mock race via headless
+Chrome/Edge; also runs build_site). The old recorded live demo was dropped (too much
+upkeep). The mock track is the real Monza outline (bacinger/f1-circuits, MIT,
+attribution in `mock.py`).
 Owner: no "clever" code-snippet jokes on the site.
 
 ## Rules

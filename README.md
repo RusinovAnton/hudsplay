@@ -3,17 +3,20 @@
 # HUDsplay
 
 Personal, minimal iRacing HUD overlay. VS Code look, Fira Code, every color configurable.
-Website: https://rusinovanton.github.io/hudsplay/ (source in `docs/`, images from
+Website: https://rusinovanton.github.io/hudsplay/ (source in `docs/`: live widgets from the
+overlay's own CSS via `packaging/build_site.py`; this screenshot from
 `uv run python packaging/capture_screenshots.py`). MIT licensed, see [LICENSE](LICENSE).
 
 ![HUDsplay overlay with mock race data at 1920x1080](docs/screenshot.png)
 
 Widgets: session (lap / estimated total, position vs grid, time left), clock,
-relative (cars ±2 on track, class and lap tags, radio indicator), fuel (tank bar,
-per lap, laps left, needed to finish), deltas (session best + gap and catch
-estimate for the car ahead/behind), radar (cars alongside, three-wide warning),
-track map (recorded on your first clean lap, painted green/red by delta, overview
-or follow mode).
+relative (cars ±3 on track + the leader, class and lap tags, iRating on a license-colored
+badge, radio indicator; grid before the start, standings in practice/qualifying), fuel
+(tank bar, per lap, laps left, needed to finish), laps (last + optimal), incidents
+(count / next warning / DQ, alert), deltas (session best + gap and catch estimate for
+the car ahead/behind), radar (cars alongside, three-wide warning), track map (recorded
+on a clean lap or shipped, painted green/red by time gained/lost, overview or follow
+mode). Color themes after popular VS Code themes, every color editable.
 
 ## Installer (recommended)
 
