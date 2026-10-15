@@ -2,7 +2,7 @@
 
     uv run python packaging/capture_screenshots.py [--warmup 210]
 
-Starts `racehud --mock` on a spare port, lets the fake race run (fuel per lap and the
+Starts `hudsplay --mock` on a spare port, lets the fake race run (fuel per lap and the
 optimal lap need a few laps), pins the radar + incident alert to a representative
 moment, then writes:
     docs/img/hero.webp, docs/screenshot.png   whole overlay, 1920x1080
@@ -151,7 +151,7 @@ async def record_demo(s: aiohttp.ClientSession) -> None:
     html = html.replace('href="/static/', 'href="static/').replace(
         '<script src="/static/app.js"></script>',
         '<script src="replay.js"></script>\n  <script src="static/app.js"></script>')
-    html = html.replace("<title>racehud</title>", '<title>racehud live demo</title>\n  <meta name="robots" content="noindex">')
+    html = html.replace("<title>HUDsplay</title>", '<title>HUDsplay live demo</title>\n  <meta name="robots" content="noindex">')
     (DEMO / "index.html").write_text(html, encoding="utf-8", newline="")
     print("  docs/demo/index.html + static/ (copied from frontend/)")
 
@@ -242,8 +242,8 @@ def main() -> None:
     browser = next((b for b in BROWSERS if Path(b).exists()), None) or shutil.which("chrome")
     if not browser:
         raise SystemExit("Chrome or Edge not found")
-    profile = tempfile.mkdtemp(prefix="racehud-capture-")
-    backend = subprocess.Popen([sys.executable, "-m", "racehud", "--mock", "--port", str(PORT)], cwd=ROOT)
+    profile = tempfile.mkdtemp(prefix="hudsplay-capture-")
+    backend = subprocess.Popen([sys.executable, "-m", "hudsplay", "--mock", "--port", str(PORT)], cwd=ROOT)
     chrome = subprocess.Popen([browser, "--headless=new", f"--remote-debugging-port={CDP_PORT}",
                                f"--user-data-dir={profile}", f"--window-size={W},{H}", "--hide-scrollbars",
                                "about:blank"])

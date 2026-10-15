@@ -1,9 +1,9 @@
 {
-  "name": "racehud-shell",
+  "name": "hudsplay-shell",
   "private": true,
   "version": "0.1.0",
-  "productName": "racehud",
-  "description": "racehud iRacing HUD overlay",
+  "productName": "HUDsplay",
+  "description": "HUDsplay iRacing HUD overlay",
   "author": "RusinovAnton",
   "main": "main.js",
   "scripts": {
@@ -11,8 +11,8 @@
     "dist": "electron-builder --win nsis --publish never"
   },
   "build": {
-    "appId": "com.racehud.app",
-    "productName": "racehud",
+    "appId": "com.hudsplay.app",
+    "productName": "HUDsplay",
     "directories": {
       "output": "../packaging/installer",
       "buildResources": "assets"
@@ -24,7 +24,7 @@
     ],
     "extraResources": [
       {
-        "from": "../packaging/dist/racehud-backend",
+        "from": "../packaging/dist/hudsplay-backend",
         "to": "backend"
       }
     ],
@@ -38,11 +38,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "racehud",
+      "shortcutName": "HUDsplay",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
       "include": "assets/installer.nsh",
-      "artifactName": "racehud-setup.exe"
+      "artifactName": "hudsplay-setup.exe"
     }
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
-"""racehud settings. Override any field in config.toml under [racehud]
-(repo root in dev, %APPDATA%/racehud/data when installed)."""
+"""hudsplay settings. Override any field in config.toml under [hudsplay]
+(repo root in dev, %APPDATA%/HUDsplay/data when installed)."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 
 # installed build = PyInstaller exe: app files are unpacked read-only next to it,
-# user files (config, recorded maps, log) live in %APPDATA%\racehud\data
-# (%APPDATA%\racehud itself is the overlay window's Electron profile: layout, colors)
+# user files (config, recorded maps, log) live in %APPDATA%\HUDsplay\data
+# (%APPDATA%\HUDsplay itself is the overlay window's Electron profile: layout, colors)
 FROZEN = getattr(sys, "frozen", False)
 ROOT = Path(sys._MEIPASS) if FROZEN else Path(__file__).resolve().parents[2]
-DATA = Path(os.environ.get("APPDATA", Path.home())) / "racehud" / "data" if FROZEN else ROOT
+DATA = Path(os.environ.get("APPDATA", Path.home())) / "HUDsplay" / "data" if FROZEN else ROOT
 
 
 @dataclass
@@ -45,7 +45,7 @@ class Config:
 def load_config(path: Path = DATA / "config.toml") -> Config:
     cfg = Config()
     if path.exists():
-        data = tomllib.loads(path.read_text()).get("racehud", {})
+        data = tomllib.loads(path.read_text()).get("hudsplay", {})
         known = {f.name for f in fields(Config)}
         for key, value in data.items():
             if key in known:

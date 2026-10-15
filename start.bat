@@ -1,5 +1,5 @@
 @echo off
-rem Starts the racehud telemetry backend in its own window, then the overlay window.
+rem Starts the HUDsplay telemetry backend in its own window, then the overlay window.
 cd /d "%~dp0"
 
 where uv >nul 2>nul
@@ -48,7 +48,7 @@ if not exist node_modules\electron\dist\electron.exe (
 if not exist node_modules\electron\dist\electron.exe (
   echo.
   echo  Electron download failed ^(network, antivirus or firewall^).
-  echo  Retry from a mirror in PowerShell, inside the racehud\electron folder:
+  echo  Retry from a mirror in PowerShell, inside the hudsplay\electron folder:
   echo.
   echo    $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"; node node_modules\electron\install.js
   echo.
@@ -59,6 +59,6 @@ if not exist node_modules\electron\dist\electron.exe (
 )
 cd ..
 
-start "racehud-backend" cmd /k uv run racehud
+start "hudsplay-backend" cmd /k uv run hudsplay
 cd electron
 call npm start

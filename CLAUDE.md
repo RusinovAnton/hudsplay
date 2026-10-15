@@ -1,6 +1,6 @@
-# racehud: notes for Claude
+# HUDsplay: notes for Claude
 
-racehud: personal iRacing HUD overlay. Built on macOS against mock data, continued on the
+HUDsplay: personal iRacing HUD overlay. Built on macOS against mock data, continued on the
 Windows sim PC with real iRacing. See README.md for architecture and run commands.
 
 ## Owner preferences
@@ -23,17 +23,21 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
 
 ## Packaging
 
-`build-installer.bat` → PyInstaller `racehud-backend.exe` (entry `packaging/backend.py`,
+`build-installer.bat` → PyInstaller `hudsplay-backend.exe` (entry `packaging/backend.py`,
 frontend bundled as data) + electron-builder NSIS installer (`electron/package.json`
 "build", `electron/assets/installer.nsh`). Installed Electron spawns/kills the backend
-itself and shows a tray icon; dev (`start.bat`) is unchanged. Paths: `config.ROOT` =
+itself and shows a tray icon; dev (`start.bat`) is unchanged.
+Renamed from racehud (name taken) on 2026-10-15; installed Electron copies
+`%APPDATA%\racehud` to the new profile once on first start (`electron/main.js`).
+Code signing: SignPath is wired in `release.yml` but not registered yet, so the README
+and site must not claim signed builds or show a code signing policy until it is. Paths: `config.ROOT` =
 read-only app files, `config.DATA` = user files (repo root in dev,
-`%APPDATA%\racehud\data` when frozen). `%APPDATA%\racehud` is Electron's profile
+`%APPDATA%\HUDsplay\data` when frozen). `%APPDATA%\HUDsplay` is Electron's profile
 (layout/colors in localStorage). Don't write user files under ROOT.
 
 ## Website
 
-Landing page in `docs/` (GitHub Pages from `default` → `/docs`, https://rusinovanton.github.io/racehud/).
+Landing page in `docs/` (GitHub Pages from `default` → `/docs`, https://rusinovanton.github.io/hudsplay/).
 Plain HTML/CSS, editor look, no build step. Screenshots + social card come from
 `uv run python packaging/capture_screenshots.py` (mock race via headless Chrome/Edge,
 also stamps image sizes into `docs/index.html`); rerun it after UI changes. The mock
@@ -42,9 +46,9 @@ Owner: no "clever" code-snippet jokes on the site.
 
 ## Rules
 
-- All derived logic lives in `src/racehud/engine.py`. Sources only read raw
+- All derived logic lives in `src/hudsplay/engine.py`. Sources only read raw
   values in iRacing SDK var names. Keep `sources/mock.py` producing the same
-  shape so `uv run racehud --mock` stays a working UI dev loop.
+  shape so `uv run hudsplay --mock` stays a working UI dev loop.
 - The engine runs at 60 Hz, so no YAML parsing or heavy work per frame. Session info is
   re-read only when its update counter changes (`sources/iracing.py`).
 - The pump loop in `server.py` must never crash mid-race. Exceptions are logged and the loop continues.
@@ -92,7 +96,7 @@ Race: no laps-total estimate before SessionState 4 (gridding, pace laps).
 
 **Not yet verified against real iRacing.** First Windows session checklist:
 
-1. `uv sync`, then `uv run racehud --dump` while in a session. Check in `dump/irsdk_dump.txt`:
+1. `uv sync`, then `uv run hudsplay --dump` while in a session. Check in `dump/irsdk_dump.txt`:
    - Driver country field. The engine reads `DriverInfo.Drivers[].FlairName`
      (`engine.py`, `_load_info`). The real key name is a guess. Fix it if different.
    - `SessionLapsTotal` exists as a telemetry var (fallback: `SessionInfo.Sessions[].SessionLaps`).

@@ -1,6 +1,6 @@
 // Transparent, click-through, always-on-top window covering the primary display.
 // Loads the frontend served by the Python backend. Installed build: starts the bundled
-// backend (resources/backend/racehud-backend.exe) itself; dev: start.bat runs `uv run racehud`.
+// backend (resources/backend/hudsplay-backend.exe) itself; dev: start.bat runs `uv run hudsplay`.
 //   Ctrl+Shift+O  toggle edit mode (window takes mouse input, drag widgets, pick colors)
 //   Ctrl+Shift+R  reload frontend
 //   Ctrl+Shift+Q  quit
@@ -10,10 +10,10 @@ const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const URL = process.env.RACEHUD_URL || "http://127.0.0.1:8765/";
+const URL = process.env.HUDSPLAY_URL || "http://127.0.0.1:8765/";
 const ICON = path.join(__dirname, "assets", "icon.ico");
-// backend's config.toml, maps/, racehud.log (see src/racehud/config.py)
-const DATA_DIR = app.isPackaged ? path.join(app.getPath("appData"), "racehud", "data") : path.resolve(__dirname, "..");
+// backend's config.toml, maps/, hudsplay.log (see src/hudsplay/config.py)
+const DATA_DIR = app.isPackaged ? path.join(app.getPath("appData"), "HUDsplay", "data") : path.resolve(__dirname, "..");
 const BACKEND_RESTART_MS = 2000;
 
 let win;
@@ -23,21 +23,32 @@ let hoverClickable = false; // pointer over a clickable bit of the overlay (bann
 let backend = null;
 let quitting = false;
 
+// one-time move from the old name: the app was called racehud, so the first start after
+// updating copies %APPDATA%\racehud (layout, colors, data\ with config and maps) over.
+// Must run before anything (incl. the single-instance lock) creates the new profile.
+if (app.isPackaged) {
+  const oldDir = path.join(app.getPath("appData"), "racehud");
+  const newDir = app.getPath("userData");
+  try {
+    if (!fs.existsSync(newDir) && fs.existsSync(oldDir)) fs.cpSync(oldDir, newDir, { recursive: true });
+  } catch (_e) {} // start fresh rather than not at all
+}
+
 if (!app.requestSingleInstanceLock()) app.quit(); // already running: the tray icon has it
 // same id as "appId" in package.json: names the start-with-Windows registry value
 // (removed again by assets/installer.nsh on uninstall)
-app.setAppUserModelId("com.racehud.app");
+app.setAppUserModelId("com.hudsplay.app");
 
 // ---------------------------------------------------------------- backend (installed build)
 
 // a backend left over from a crash would hold the port and serve stale code
 function killStaleBackend() {
-  if (app.isPackaged) spawnSync("taskkill", ["/F", "/IM", "racehud-backend.exe"], { windowsHide: true });
+  if (app.isPackaged) spawnSync("taskkill", ["/F", "/IM", "hudsplay-backend.exe"], { windowsHide: true });
 }
 
 function startBackend() {
   if (!app.isPackaged || quitting) return;
-  const exe = path.join(process.resourcesPath, "backend", "racehud-backend.exe");
+  const exe = path.join(process.resourcesPath, "backend", "hudsplay-backend.exe");
   backend = spawn(exe, [], { windowsHide: true, stdio: "ignore" });
   backend.on("exit", () => {
     backend = null;
@@ -57,7 +68,7 @@ function createWindow() {
   const { bounds } = screen.getPrimaryDisplay();
   win = new BrowserWindow({
     ...bounds,
-    title: "racehud",
+    title: "HUDsplay",
     icon: ICON,
     transparent: true,
     frame: false,
@@ -87,7 +98,7 @@ function setEditMode(on) {
   applyMouse();
   win.setFocusable(on);
   if (on) win.focus();
-  win.webContents.executeJavaScript(`window.racehud && window.racehud.setEditMode(${on})`);
+  win.webContents.executeJavaScript(`window.hudsplay && window.hudsplay.setEditMode(${on})`);
   updateTray();
 }
 
@@ -98,7 +109,7 @@ const autostartOn = () => app.getLoginItemSettings().openAtLogin;
 function updateTray() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "racehud", enabled: false },
+    { label: "HUDsplay", enabled: false },
     { type: "separator" },
     { label: "Edit mode", type: "checkbox", checked: editMode, accelerator: "Ctrl+Shift+O", click: () => setEditMode(!editMode) },
     { label: "Reload overlay", accelerator: "Ctrl+Shift+R", click: () => win.reload() },
@@ -118,7 +129,7 @@ function updateTray() {
 
 function createTray() {
   tray = new Tray(ICON);
-  tray.setToolTip("racehud");
+  tray.setToolTip("HUDsplay");
   tray.on("click", () => tray.popUpContextMenu());
   updateTray();
 }
@@ -144,9 +155,9 @@ app.whenReady().then(() => {
   globalShortcut.register("CommandOrControl+Shift+R", () => win.reload());
   globalShortcut.register("CommandOrControl+Shift+Q", () => app.quit());
   // edit panel buttons (preload.js)
-  ipcMain.on("racehud:edit-mode", (_e, on) => setEditMode(on));
-  ipcMain.on("racehud:quit", () => app.quit());
-  ipcMain.on("racehud:clickable", (_e, on) => { hoverClickable = !!on; applyMouse(); });
+  ipcMain.on("hudsplay:edit-mode", (_e, on) => setEditMode(on));
+  ipcMain.on("hudsplay:quit", () => app.quit());
+  ipcMain.on("hudsplay:clickable", (_e, on) => { hoverClickable = !!on; applyMouse(); });
 });
 
 app.on("before-quit", () => { quitting = true; stopBackend(); });

@@ -1,7 +1,7 @@
-"""Draws the racehud icon (no image libraries needed) -> electron/assets/icon.ico + icon.png.
+"""Draws the HUDsplay icon (no image libraries needed) -> electron/assets/icon.ico + icon.png.
 
-"//R" on a dark rounded square (VS Code Dark+): "//" in the comment green of the
-`// title` headers, "R" in the gold --c-me. Letters are stroked line segments + an arc,
+"//H" on a dark rounded square (VS Code Dark+): "//" in the comment green of the
+`// title` headers, "H" in the gold --c-me. Letters are stroked line segments,
 rendered per size with 4x4 supersampling so the tray (16 px) stays crisp.
 
     uv run python packaging/make_icon.py
@@ -25,14 +25,11 @@ STROKE = 0.085  # line width, in icon widths
 # glyph strokes in unit coords (x right, y down)
 TOP, BOT = 0.27, 0.73
 SLASHES = [((0.12, BOT), (0.25, TOP)), ((0.27, BOT), (0.40, TOP))]
-R_X, R_MID = 0.53, 0.52  # stem x, where the bowl meets the stem
-BOWL_R = (R_MID - TOP) / 2
-BOWL_C = (0.68, TOP + BOWL_R)  # bowl: half circle to the right of this centre
-R_LINES = [
-    ((R_X, TOP), (R_X, BOT)),  # stem
-    ((R_X, TOP), (BOWL_C[0], TOP)),  # bowl top
-    ((R_X, R_MID), (BOWL_C[0], R_MID)),  # bowl bottom
-    ((0.66, R_MID), (0.85, BOT)),  # leg
+H_L, H_R, H_MID = 0.55, 0.85, 0.50  # left stem x, right stem x, crossbar y
+H_LINES = [
+    ((H_L, TOP), (H_L, BOT)),  # left stem
+    ((H_R, TOP), (H_R, BOT)),  # right stem
+    ((H_L, H_MID), (H_R, H_MID)),  # crossbar
 ]
 
 
@@ -56,10 +53,7 @@ def _shade(u: float, v: float) -> tuple[tuple[int, int, int], float] | None:
     half = STROKE / 2
     if any(_seg(u, v, a, b) <= half for a, b in SLASHES):
         return SLASH, 1.0
-    if any(_seg(u, v, a, b) <= half for a, b in R_LINES):
-        return LETTER, 1.0
-    # bowl arc: right half of a circle
-    if u >= BOWL_C[0] and abs(math.hypot(u - BOWL_C[0], v - BOWL_C[1]) - BOWL_R) <= half:
+    if any(_seg(u, v, a, b) <= half for a, b in H_LINES):
         return LETTER, 1.0
     return BG, 1.0
 

@@ -273,7 +273,7 @@ class Engine:
                 "cls": d.get("CarClassID"),
                 "clsName": d.get("CarClassShortName") or "",
                 "clsColor": _class_color(d.get("CarClassColor")),
-                # TODO(windows): verify flair field name with `uv run racehud --dump`
+                # TODO(windows): verify flair field name with `uv run hudsplay --dump`
                 "cc": to_iso(d.get("FlairName")),
                 # offline / AI sessions report 0 or 1: no rating to show
                 "ir": d.get("IRating") if (d.get("IRating") or 0) > 1 else None,

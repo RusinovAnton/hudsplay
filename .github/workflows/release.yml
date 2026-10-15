@@ -2,13 +2,13 @@
 # it as a GitHub release.
 # Release: bump "version" in electron/package.json, commit, then
 #   git tag v<version> && git push origin v<version>
-# The website's download button points at releases/latest/download/racehud-setup.exe.
+# The website's download button points at releases/latest/download/hudsplay-setup.exe.
 #
 # Code signing (SignPath Foundation, free for open source), set in the repo settings:
 #   Settings → Secrets and variables → Actions
 #     secret   SIGNPATH_API_TOKEN          API token of the SignPath CI user
 #     variable SIGNPATH_ORGANIZATION_ID    SignPath organization id
-#     variable SIGNPATH_PROJECT_SLUG       optional, default "racehud"
+#     variable SIGNPATH_PROJECT_SLUG       optional, default "hudsplay"
 #     variable SIGNPATH_SIGNING_POLICY     optional, default "release-signing"
 # Until SIGNPATH_ORGANIZATION_ID is set, releases are published unsigned.
 # What SignPath signs is described in .signpath/artifact-configuration.xml.
@@ -57,8 +57,8 @@ jobs:
         id: unsigned
         uses: actions/upload-artifact@v4
         with:
-          name: racehud-setup-unsigned
-          path: packaging/installer/racehud-setup.exe
+          name: hudsplay-setup-unsigned
+          path: packaging/installer/hudsplay-setup.exe
           if-no-files-found: error
 
       - name: Sign with SignPath
@@ -67,7 +67,7 @@ jobs:
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'racehud' }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'hudsplay' }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY || 'release-signing' }}
           github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
           wait-for-completion: true
@@ -78,12 +78,12 @@ jobs:
         shell: pwsh
         run: |
           if ($env:SIGNED -eq 'true') {
-            $file = "signed/racehud-setup.exe"
+            $file = "signed/hudsplay-setup.exe"
             $sig = Get-AuthenticodeSignature $file
             if ($sig.Status -ne 'Valid') { throw "signed installer has signature status $($sig.Status)" }
             $note = "The installer is code-signed (free code signing by SignPath.io, certificate by SignPath Foundation)."
           } else {
-            $file = "packaging/installer/racehud-setup.exe"
+            $file = "packaging/installer/hudsplay-setup.exe"
             $note = "Windows SmartScreen may warn because the installer isn't code-signed yet: choose *More info → Run anyway*."
           }
           "file=$file" >> $env:GITHUB_OUTPUT
@@ -95,5 +95,5 @@ jobs:
           files: ${{ steps.pick.outputs.file }}
           generate_release_notes: true
           body: |
-            **Install:** download `racehud-setup.exe` below and run it. ${{ steps.pick.outputs.note }}
-            In iRacing, use borderless windowed mode. Website: https://rusinovanton.github.io/racehud/
+            **Install:** download `hudsplay-setup.exe` below and run it. ${{ steps.pick.outputs.note }}
+            In iRacing, use borderless windowed mode. Website: https://rusinovanton.github.io/hudsplay/

@@ -1,4 +1,4 @@
-/* racehud landing page: VS Code Dark+ palette, Fira Code, comment-style headings */
+/* HUDsplay landing page: VS Code Dark+ palette, Fira Code, comment-style headings */
 :root {
   --bg: #1e1e1e;
   --bg-2: #252526;
@@ -41,9 +41,9 @@ code, kbd {
 kbd { color: var(--fg); }
 
 .comment { color: var(--comment); font-style: italic; margin: 0 0 0.3em; }
-/* wordmark, like the //R logo: "//" and "hud" comment green, "race" gold */
-.lg-slash, .lg-hud { color: var(--comment); }
-.lg-race { color: var(--gold); }
+/* wordmark, like the //H logo: "//" and "splay" comment green, "HUD" gold */
+.lg-slash, .lg-splay { color: var(--comment); }
+.lg-hud { color: var(--gold); }
 
 /* ---------- title bar with editor tabs */
 .titlebar {

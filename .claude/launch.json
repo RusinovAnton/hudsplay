@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "racehud-mock",
+      "name": "hudsplay-mock",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "racehud", "--mock"],
+      "runtimeArgs": ["run", "hudsplay", "--mock"],
       "port": 8765
     },
     {

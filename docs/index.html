@@ -3,26 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>racehud: minimal iRacing HUD overlay in code-editor style</title>
-  <meta name="description" content="racehud is a free, open source (MIT), minimal and fully configurable HUD overlay for iRacing on Windows. Relative, standings, fuel calculator, deltas, radar, track map and incidents, styled like a code editor (VS Code Dark+, Fira Code).">
+  <title>HUDsplay: minimal iRacing HUD overlay in code-editor style</title>
+  <meta name="description" content="HUDsplay is a free, open source (MIT), minimal and fully configurable HUD overlay for iRacing on Windows. Relative, standings, fuel calculator, deltas, radar, track map and incidents, styled like a code editor (VS Code Dark+, Fira Code).">
   <meta name="keywords" content="iRacing overlay, iRacing HUD, iRacing relative, iRacing fuel calculator, iRacing radar, sim racing overlay, iRacing track map, iRacing delta, minimal overlay">
   <meta name="author" content="Anton Rusinov">
   <meta name="theme-color" content="#1e1e1e">
-  <link rel="canonical" href="https://rusinovanton.github.io/racehud/">
+  <link rel="canonical" href="https://rusinovanton.github.io/hudsplay/">
 
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="racehud">
-  <meta property="og:title" content="racehud: minimal iRacing HUD overlay in code-editor style">
+  <meta property="og:site_name" content="HUDsplay">
+  <meta property="og:title" content="HUDsplay: minimal iRacing HUD overlay in code-editor style">
   <meta property="og:description" content="Relative, standings, fuel, deltas, radar, track map and incidents for iRacing. Minimal, click-through and configurable. Looks like your code editor.">
-  <meta property="og:url" content="https://rusinovanton.github.io/racehud/">
-  <meta property="og:image" content="https://rusinovanton.github.io/racehud/img/og.png">
+  <meta property="og:url" content="https://rusinovanton.github.io/hudsplay/">
+  <meta property="og:image" content="https://rusinovanton.github.io/hudsplay/img/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="racehud overlay widgets on a dark background, styled like a code editor">
+  <meta property="og:image:alt" content="HUDsplay overlay widgets on a dark background, styled like a code editor">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="racehud: minimal iRacing HUD overlay in code-editor style">
+  <meta name="twitter:title" content="HUDsplay: minimal iRacing HUD overlay in code-editor style">
   <meta name="twitter:description" content="Relative, standings, fuel, deltas, radar, track map and incidents for iRacing. Minimal, click-through and configurable.">
-  <meta name="twitter:image" content="https://rusinovanton.github.io/racehud/img/og.png">
+  <meta name="twitter:image" content="https://rusinovanton.github.io/hudsplay/img/og.png">
 
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" href="img/icon.png" type="image/png">
@@ -36,14 +36,14 @@
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "racehud",
+    "name": "HUDsplay",
     "description": "Minimal, configurable HUD overlay for iRacing: relative, standings, fuel calculator, deltas, radar, track map and incidents, styled like a code editor.",
     "applicationCategory": "GameApplication",
     "operatingSystem": "Windows 10, Windows 11",
-    "url": "https://rusinovanton.github.io/racehud/",
-    "downloadUrl": "https://github.com/RusinovAnton/racehud/releases/latest/download/racehud-setup.exe",
-    "image": "https://rusinovanton.github.io/racehud/img/og.png",
-    "screenshot": "https://rusinovanton.github.io/racehud/img/hero.webp",
+    "url": "https://rusinovanton.github.io/hudsplay/",
+    "downloadUrl": "https://github.com/RusinovAnton/hudsplay/releases/latest/download/hudsplay-setup.exe",
+    "image": "https://rusinovanton.github.io/hudsplay/img/og.png",
+    "screenshot": "https://rusinovanton.github.io/hudsplay/img/hero.webp",
     "author": { "@type": "Person", "name": "Anton Rusinov", "url": "https://github.com/RusinovAnton" },
     "license": "https://opensource.org/licenses/MIT",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
@@ -52,31 +52,31 @@
 </head>
 <body>
   <header class="titlebar">
-    <a class="brand" href="#top"><img src="img/icon.png" alt="" width="20" height="20"> <span aria-label="racehud"><span class="lg-slash">//</span><span class="lg-race">race</span><span class="lg-hud">hud</span></span></a>
+    <a class="brand" href="#top"><img src="img/icon.png" alt="" width="20" height="20"> <span aria-label="HUDsplay"><span class="lg-slash">//</span><span class="lg-hud">HUD</span><span class="lg-splay">splay</span></span></a>
     <nav class="tabs" aria-label="Sections">
       <a href="#widgets">widgets.hud</a>
       <a href="#edit-mode">edit-mode.hud</a>
       <a href="#install">install.md</a>
       <a href="#faq">faq.md</a>
     </nav>
-    <a class="gh" href="https://github.com/RusinovAnton/racehud">GitHub</a>
+    <a class="gh" href="https://github.com/RusinovAnton/hudsplay">GitHub</a>
   </header>
 
   <main id="top">
     <section class="hero">
       <p class="comment">// iRacing HUD overlay</p>
-      <h1 aria-label="racehud"><span class="lg-slash">//</span><span class="lg-race">race</span><span class="lg-hud">hud</span></h1>
+      <h1 aria-label="HUDsplay"><span class="lg-slash">//</span><span class="lg-hud">HUD</span><span class="lg-splay">splay</span></h1>
       <p class="lead">A minimal, configurable overlay for iRacing that looks like your code editor.</p>
       <div class="cta">
-        <a class="btn primary" href="https://github.com/RusinovAnton/racehud/releases/latest/download/racehud-setup.exe">Download for Windows</a>
-        <a class="btn" href="https://github.com/RusinovAnton/racehud">View source</a>
+        <a class="btn primary" href="https://github.com/RusinovAnton/hudsplay/releases/latest/download/hudsplay-setup.exe">Download for Windows</a>
+        <a class="btn" href="https://github.com/RusinovAnton/hudsplay">View source</a>
       </div>
       <p class="meta">free &amp; open source (MIT) · Windows 10/11 · iRacing in borderless windowed mode</p>
       <figure class="window">
         <div class="window-bar"><span></span><span></span><span></span><em>overlay.hud</em></div>
         <div class="demo" id="demo">
           <img src="img/hero.webp" width="1920" height="1080" fetchpriority="high"
-               alt="racehud overlay: session, relative with iRating, fuel, laps, incidents, delta bars, Monza track map and radar on a dark background">
+               alt="HUDsplay overlay: session, relative with iRating, fuel, laps, incidents, delta bars, Monza track map and radar on a dark background">
           <button class="play" id="play-demo" type="button">▶ live demo</button>
         </div>
         <figcaption>A recorded race playing through the real HUD. Press <kbd>e</kbd> in the demo for edit mode.</figcaption>
@@ -97,7 +97,7 @@
       <h2 class="section-title">Every widget, one job</h2>
 
       <article class="widget-doc">
-        <img src="img/w-relative.webp" width="535" height="149" loading="lazy" alt="racehud relative widget: positions, car numbers, iRating, flags, names, class, best laps and gaps">
+        <img src="img/w-relative.webp" width="535" height="149" loading="lazy" alt="HUDsplay relative widget: positions, car numbers, iRating, flags, names, class, best laps and gaps">
         <div>
           <h3>// relative</h3>
           <p>The cars nearest to you on track, any class, with gaps timed the same way as iRacing's own relative.</p>
@@ -112,7 +112,7 @@
       </article>
 
       <article class="widget-doc">
-        <img src="img/w-session.webp" width="148" height="147" loading="lazy" alt="racehud session widget: session type, lap of total, position, time left, track name">
+        <img src="img/w-session.webp" width="148" height="147" loading="lazy" alt="HUDsplay session widget: session type, lap of total, position, time left, track name">
         <div>
           <h3>// session</h3>
           <p>Session type as the title (practice, qualify, race), current lap of the total, position and time left.</p>
@@ -125,7 +125,7 @@
       </article>
 
       <article class="widget-doc">
-        <img src="img/w-delta-best.webp" width="274" height="71" loading="lazy" alt="racehud delta bar against the session best lap">
+        <img src="img/w-delta-best.webp" width="274" height="71" loading="lazy" alt="HUDsplay delta bar against the session best lap">
         <div>
           <h3>// Δ delta</h3>
           <p>Live delta to your session best (or best, optimal, last lap: your pick). Colour shows the sign; brightness shows the trend, bright while it grows and faded while it shrinks.</p>
@@ -134,8 +134,8 @@
 
       <article class="widget-doc">
         <div class="stack">
-          <img src="img/w-delta-ahead.webp" width="274" height="86" loading="lazy" alt="racehud gap widget for the car ahead">
-          <img src="img/w-delta-behind.webp" width="274" height="86" loading="lazy" alt="racehud gap widget for the car behind">
+          <img src="img/w-delta-ahead.webp" width="274" height="86" loading="lazy" alt="HUDsplay gap widget for the car ahead">
+          <img src="img/w-delta-behind.webp" width="274" height="86" loading="lazy" alt="HUDsplay gap widget for the car behind">
         </div>
         <div>
           <h3>// ▲ ahead · ▼ behind</h3>
@@ -149,7 +149,7 @@
       </article>
 
       <article class="widget-doc">
-        <img src="img/w-laps.webp" width="179" height="90" loading="lazy" alt="racehud laps widget: last lap and optimal lap times">
+        <img src="img/w-laps.webp" width="179" height="90" loading="lazy" alt="HUDsplay laps widget: last lap and optimal lap times">
         <div>
           <h3>// laps</h3>
           <p>Your last lap (green when it's your best) and your optimal lap: the sum of your best time in each of the track's sectors over clean laps.</p>
@@ -157,7 +157,7 @@
       </article>
 
       <article class="widget-doc">
-        <img src="img/w-fuel.webp" width="148" height="145" loading="lazy" alt="racehud fuel calculator: tank level, use per lap, laps left, fuel needed">
+        <img src="img/w-fuel.webp" width="148" height="145" loading="lazy" alt="HUDsplay fuel calculator: tank level, use per lap, laps left, fuel needed">
         <div>
           <h3>// fuel</h3>
           <p>Tank level with a marker for what you need to reach the flag, average use per lap, laps left in the tank and how much more you need to finish.</p>
@@ -166,8 +166,8 @@
 
       <article class="widget-doc">
         <div class="stack">
-          <img src="img/w-incidents.webp" width="122" height="80" loading="lazy" alt="racehud incident counter">
-          <img src="img/w-incident-alert.webp" width="120" height="54" loading="lazy" alt="racehud incident alert: contact 4x">
+          <img src="img/w-incidents.webp" width="122" height="80" loading="lazy" alt="HUDsplay incident counter">
+          <img src="img/w-incident-alert.webp" width="120" height="54" loading="lazy" alt="HUDsplay incident alert: contact 4x">
         </div>
         <div>
           <h3>// incidents</h3>
@@ -176,7 +176,7 @@
       </article>
 
       <article class="widget-doc">
-        <img src="img/w-map.webp" width="471" height="381" loading="lazy" alt="racehud track map of Monza painted green and red by time gained and lost">
+        <img src="img/w-map.webp" width="471" height="381" loading="lazy" alt="HUDsplay track map of Monza painted green and red by time gained and lost">
         <div>
           <h3>// map</h3>
           <p>The real shape of the track, painted every 10 m green or red by time gained or lost against your last lap.</p>
@@ -188,7 +188,7 @@
       </article>
 
       <article class="widget-doc">
-        <img src="img/w-radar.webp" width="215" height="215" loading="lazy" alt="racehud radar with a car alongside on the left glowing red">
+        <img src="img/w-radar.webp" width="215" height="215" loading="lazy" alt="HUDsplay radar with a car alongside on the left glowing red">
         <div>
           <h3>// radar</h3>
           <p>Cars around you to scale, with a red glow on the side where someone is alongside. It flashes when you're three wide.</p>
@@ -200,7 +200,7 @@
       </article>
 
       <article class="widget-doc">
-        <img src="img/w-clock.webp" width="144" height="80" loading="lazy" alt="racehud clock widget">
+        <img src="img/w-clock.webp" width="144" height="80" loading="lazy" alt="HUDsplay clock widget">
         <div>
           <h3>// time</h3>
           <p>Wall clock, so you know when dinner is.</p>
@@ -221,7 +221,7 @@
       <figure class="window">
         <div class="window-bar"><span></span><span></span><span></span><em>edit-mode.hud</em></div>
         <img src="img/edit-mode.webp" width="1920" height="1080" loading="lazy"
-             alt="racehud edit mode: widgets outlined with on/off switches and the settings panel for the selected radar">
+             alt="HUDsplay edit mode: widgets outlined with on/off switches and the settings panel for the selected radar">
       </figure>
     </section>
 
@@ -229,7 +229,7 @@
       <p class="comment">// install.md</p>
       <h2 class="section-title">Install</h2>
       <ol>
-        <li><a href="https://github.com/RusinovAnton/racehud/releases/latest/download/racehud-setup.exe">Download <code>racehud-setup.exe</code></a> (or pick a version on the <a href="https://github.com/RusinovAnton/racehud/releases">releases page</a>) and run it. It installs for your user; no admin needed.</li>
+        <li><a href="https://github.com/RusinovAnton/hudsplay/releases/latest/download/hudsplay-setup.exe">Download <code>hudsplay-setup.exe</code></a> (or pick a version on the <a href="https://github.com/RusinovAnton/hudsplay/releases">releases page</a>) and run it. It installs for your user; no admin needed.</li>
         <li>If Windows SmartScreen warns about an unknown publisher, choose <em>More info → Run anyway</em>. The installer isn't code-signed.</li>
         <li>In iRacing, set <em>Options → Graphics</em> to <b>borderless windowed</b>. In exclusive fullscreen, overlays are hidden.</li>
         <li>Join a session. The HUD shows up on its own, and lives in the tray.</li>
@@ -239,18 +239,17 @@
     <section id="faq" class="faq">
       <p class="comment">// faq.md</p>
       <h2 class="section-title">FAQ</h2>
-      <details><summary>Is racehud free?</summary><p>Yes. It's free and open source under the MIT license. The code is on <a href="https://github.com/RusinovAnton/racehud">GitHub</a>; issues and pull requests are welcome.</p></details>
-      <details><summary>Is it allowed in iRacing?</summary><p>racehud only reads iRacing's official telemetry API, the same one every overlay uses. It never writes to the sim or touches its files.</p></details>
+      <details><summary>Is HUDsplay free?</summary><p>Yes. It's free and open source under the MIT license. The code is on <a href="https://github.com/RusinovAnton/hudsplay">GitHub</a>; issues and pull requests are welcome.</p></details>
+      <details><summary>Is it allowed in iRacing?</summary><p>HUDsplay only reads iRacing's official telemetry API, the same one every overlay uses. It never writes to the sim or touches its files.</p></details>
       <details><summary>Does it work in fullscreen?</summary><p>Use borderless windowed mode. Windows can't draw overlays over exclusive fullscreen games.</p></details>
-      <details><summary>Where are my settings?</summary><p>Layout and colours are saved automatically. Settings, recorded track maps and the log are in <code>%APPDATA%\racehud\data</code> (tray → Open settings folder).</p></details>
-      <details><summary>Does racehud collect any data?</summary><p>No. It reads iRacing's telemetry on your PC and keeps everything there. The overlay only downloads the Fira Code font from Google Fonts and country flag images from flagcdn.com; those requests carry nothing about you or your sessions.</p></details>
-      <details id="code-signing"><summary>Code signing policy</summary><p>Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>. Installers are built from the <a href="https://github.com/RusinovAnton/racehud">GitHub repository</a> by GitHub Actions and signed only after an approver confirms the request. Committers, reviewers and approvers: <a href="https://github.com/RusinovAnton">Anton Rusinov</a>.</p></details>
-      <details><summary>Where does the track map come from?</summary><p>iRacing doesn't provide track shapes, so racehud draws each track once, from your driving, and saves it. On a track you've never driven, the map shows a placeholder circle until your first clean lap; after that it's there from the moment you load in.</p></details>
+      <details><summary>Where are my settings?</summary><p>Layout and colours are saved automatically. Settings, recorded track maps and the log are in <code>%APPDATA%\HUDsplay\data</code> (tray → Open settings folder).</p></details>
+      <details><summary>Does HUDsplay collect any data?</summary><p>No. It reads iRacing's telemetry on your PC and keeps everything there. The overlay only downloads the Fira Code font from Google Fonts and country flag images from flagcdn.com; those requests carry nothing about you or your sessions.</p></details>
+      <details><summary>Where does the track map come from?</summary><p>iRacing doesn't provide track shapes, so HUDsplay draws each track once, from your driving, and saves it. On a track you've never driven, the map shows a placeholder circle until your first clean lap; after that it's there from the moment you load in.</p></details>
     </section>
   </main>
 
   <script>
-    // links to a FAQ entry (e.g. #code-signing) open it
+    // links to a FAQ entry (by its id) open it
     const openHash = () => { const d = document.getElementById(location.hash.slice(1)); if (d?.tagName === "DETAILS") d.open = true; };
     addEventListener("hashchange", openHash);
     openHash();
@@ -261,7 +260,7 @@
       document.getElementById("play-demo").addEventListener("click", () => {
         const frame = document.createElement("iframe");
         frame.src = "demo/";
-        frame.title = "racehud live demo";
+        frame.title = "HUDsplay live demo";
         const fit = () => { frame.style.transform = `scale(${box.clientWidth / 1920})`; };
         box.replaceChildren(frame);
         fit();
@@ -272,8 +271,8 @@
   </script>
 
   <footer>
-    <p><span class="comment">// made for sim racers who write code</span> · <a href="https://github.com/RusinovAnton/racehud">github.com/RusinovAnton/racehud</a></p>
-    <p class="small">MIT licensed · <a href="#code-signing">code signing policy</a> · racehud is not affiliated with or endorsed by iRacing.com Motorsport Simulations.</p>
+    <p><span class="comment">// made for sim racers who write code</span> · <a href="https://github.com/RusinovAnton/hudsplay">github.com/RusinovAnton/hudsplay</a></p>
+    <p class="small">MIT licensed · HUDsplay is not affiliated with or endorsed by iRacing.com Motorsport Simulations.</p>
   </footer>
 </body>
 </html>

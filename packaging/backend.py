@@ -1,5 +1,5 @@
-"""PyInstaller entry point for the installed backend (racehud-backend.exe)."""
+"""PyInstaller entry point for the installed backend (hudsplay-backend.exe)."""
 
-from racehud.__main__ import main
+from hudsplay.__main__ import main
 
 main()

@@ -1224,23 +1224,23 @@ $("btn-reset-theme").addEventListener("click", () => {
 $("btn-reset-layout").addEventListener("click", () => { save(LAYOUT_KEY, {}); applyLayout(); });
 // overlay window: the Electron shell owns click-through, so leaving edit mode goes through it
 $("btn-done").addEventListener("click", () =>
-  window.racehudShell ? window.racehudShell.setEditMode(false) : setEditMode(false));
-$("btn-exit").addEventListener("click", () => window.racehudShell?.quit());
+  window.hudsplayShell ? window.hudsplayShell.setEditMode(false) : setEditMode(false));
+$("btn-exit").addEventListener("click", () => window.hudsplayShell?.quit());
 // banner close button: the overlay is click-through (mouse moves still forwarded), so take
 // clicks only while the pointer is over it. Decided per real move: switching click-through
 // fires a synthetic mouseleave, so enter/leave events would flicker.
 let overClose = false;
 document.addEventListener("mousemove", (e) => {
   const over = !!e.target.closest?.("#status-close");
-  if (over !== overClose) { overClose = over; window.racehudShell?.setClickable(over); }
+  if (over !== overClose) { overClose = over; window.hudsplayShell?.setClickable(over); }
 });
-$("status-close").addEventListener("click", () => window.racehudShell?.quit());
+$("status-close").addEventListener("click", () => window.hudsplayShell?.quit());
 
 // browser preview: press "e" to toggle edit mode. Electron: Ctrl+Shift+O (see electron/main.js)
 document.addEventListener("keydown", (e) => {
   if (e.key === "e" && !e.target.closest("input")) setEditMode(!document.body.classList.contains("edit"));
 });
-window.racehud = { setEditMode };
+window.hudsplay = { setEditMode };
 
 buildDeltaWidgets();
 applyVisibility();

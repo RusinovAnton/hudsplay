@@ -17,7 +17,7 @@ from .config import DATA
 MAPS_DIR = DATA / "maps"
 MAP_POINTS = 1000  # resampled shape, evenly spaced in lap %
 PAINT_STEP_M = 10.0  # delta paint resolution along the track
-log = logging.getLogger("racehud")
+log = logging.getLogger("hudsplay")
 
 
 class TrackMap:

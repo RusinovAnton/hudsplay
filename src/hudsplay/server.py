@@ -13,7 +13,7 @@ from .config import ROOT, Config
 from .engine import Engine
 
 FRONTEND = ROOT / "frontend"
-log = logging.getLogger("racehud")
+log = logging.getLogger("hudsplay")
 
 
 @web.middleware
