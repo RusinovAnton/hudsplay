@@ -175,6 +175,8 @@ class MockSource:
                         "CarClassColor": 0x53FF77 if i in GT4 else 0xFFDA59,
                         "FlairName": country,
                         "IRating": 900 + (i * 733) % 3600,
+                        # every license class and safety rating level shows up
+                        "LicString": f"{'RDCBAP'[i % 6]} {(i * 1.37) % 4.99:.2f}",
                         "CarIsPaceCar": 0,
                         "IsSpectator": 0,
                     }

@@ -241,6 +241,16 @@ def _track_length_m(text: str | None) -> float | None:
     return v * 1609.344 if unit.startswith("mi") else v * 1000
 
 
+def _license(text) -> dict:
+    """DriverInfo LicString "A 3.41" -> {"lic": "A", "sr": 3.41}. (LicColor is unreliable:
+    "0xundefined" seen in a real dump.) Unknown -> nothing."""
+    try:
+        letter, sr = str(text).split()
+        return {"lic": letter[:2].upper(), "sr": float(sr)}
+    except (TypeError, ValueError):
+        return {"lic": None, "sr": None}
+
+
 def _limit(value) -> int | None:
     try:
         return int(value)
@@ -318,6 +328,7 @@ class Engine:
                 "cc": to_iso(d.get("FlairName")),
                 # offline / AI sessions report 0 or 1: no rating to show
                 "ir": d.get("IRating") if (d.get("IRating") or 0) > 1 else None,
+                **_license(d.get("LicString")),
             }
         self.multiclass = len({d["cls"] for d in self.drivers.values()}) > 1
         wi = info.get("WeekendInfo") or {}
@@ -680,6 +691,8 @@ class Engine:
                 "name": d["name"],
                 "cc": d["cc"],
                 "ir": d["ir"],
+                "lic": d["lic"],
+                "sr": d["sr"],
                 "best": _r(b),
                 "bestIsClassBest": b is not None and b == class_best.get(d["cls"]),
                 "cls": d["clsName"],

@@ -35,6 +35,13 @@
   --c-mode: #dcdcaa;
   --c-track: #9cdcfe;
   --c-irating: #b5cea8;
+  /* iRating badge = driver license color (iRacing's), strength by safety rating */
+  --c-lic-r: #e53935;
+  --c-lic-d: #fb8c00;
+  --c-lic-c: #fdd835;
+  --c-lic-b: #43a047;
+  --c-lic-a: #1e88e5;
+  --c-lic-p: #9e9e9e;
   --c-last-lap: #d4d4d4;
   --c-optimal-lap: #c586c0;
   --c-radio: #4fc1ff;

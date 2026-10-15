@@ -13,6 +13,12 @@ body {
   font-feature-settings: "calt" 1, "liga" 1;
   color: var(--c-fg);
   user-select: none;
+  /* smooth, unhinted glyphs (macOS smoothing flags; geometricPrecision for Chromium on
+     Windows); the transparent overlay can't use ClearType anyway, so grayscale everywhere */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  font-synthesis: none; /* no faked bold / italic if a weight isn't loaded yet */
 }
 
 /* browser preview only: fake "game" backdrop so widgets are readable */
@@ -138,8 +144,22 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 
 /* ---------- relative */
 .srow .ir { color: var(--c-irating); text-align: right; font-size: 0.9em; }
+/* iRating badge: license color, stronger with safety rating (SR 0.x .. 3+) */
+.srow .ir.lic {
+  justify-self: end;
+  padding: 0 0.3em;
+  border-radius: 3px;
+  line-height: 1.35;
+  color: var(--c-fg);
+  background: color-mix(in srgb, var(--lic) var(--lic-k), transparent);
+}
+.srow .ir.sr0 { --lic-k: 25%; }
+.srow .ir.sr1 { --lic-k: 50%; }
+.srow .ir.sr2 { --lic-k: 75%; color: var(--c-badge-text); }
+.srow .ir.sr3 { --lic-k: 100%; color: var(--c-badge-text); font-weight: 500; }
+/* no will-change: a permanent layer per row renders its text blurry at 1x; the slide
+   animation gets a layer only while it runs */
 .srow {
-  will-change: transform;
   display: grid;
   grid-template-columns: 4.5ch 4ch 5ch 1.35em 16ch 1.1em 3ch 8ch 8ch;
   column-gap: 1ch;
@@ -312,9 +332,11 @@ body.offline:not(.edit) .widget { opacity: 0; }
 body.away:not(.edit) .widget { opacity: 0 !important; transition: opacity 0.6s; }
 #status {
   position: fixed;
-  left: 50%;
+  left: 0;
+  right: 0;
   top: 8px;
-  transform: translateX(-50%);
+  width: fit-content;
+  margin: 0 auto; /* centred without translate(-50%): no half-pixel blurry text */
   padding: 0.2em 0.8em;
   border-radius: 4px;
   background: color-mix(in srgb, var(--c-bg) var(--bg-opacity), transparent);
@@ -322,7 +344,8 @@ body.away:not(.edit) .widget { opacity: 0 !important; transition: opacity 0.6s; 
   font-style: italic;
   display: none;
 }
-body.offline #status { display: block; }
+/* "HUDsplay - ON": while there's nothing else to see (no sim, replay, sim not focused) */
+body.offline #status, body.away:not(.edit) #status { display: block; }
 #status-close {
   margin-left: 0.5em;
   padding: 0 0.4em;

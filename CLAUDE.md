@@ -61,6 +61,11 @@ Owner: no "clever" code-snippet jokes on the site.
 - The engine runs at 60 Hz, so no YAML parsing or heavy work per frame. Session info is
   re-read only when its update counter changes (`sources/iracing.py`).
 - The pump loop in `server.py` must never crash mid-race. Exceptions are logged and the loop continues.
+- Frontend performance (the overlay shares the GPU with iRacing; the owner notices FPS
+  flicker): no per-frame getComputedStyle, no canvas work for widgets that can't be seen
+  (faded out, switched off, idle radar: not even a clear), round per-frame style values
+  to visible steps (`step()`), cache static canvas layers (map overview: road + paint,
+  rebuilt <= ~3x/s), map at 30 fps, no gradients in per-frame canvas drawing.
 
 ## Status (2026-10-13)
 
@@ -79,8 +84,8 @@ Tray "Track map" submenu (polls `/api/map`): re-record next lap (old map kept as
 `.prev.json`), report on GitHub when the re-record came out the same, share maps the
 app doesn't ship (copied to `maps-to-share/`, opens GitHub's upload page = fork + PR). Painted
 every ~10 m like the delta bar: green where time was gained in that piece, red where lost
-(vs `map_paint_reference`), intensity = how fast; paint fades with age to 50% a lap later,
-so this lap (behind me) stands out from last lap (ahead). Car dots from lap %.
+(vs `map_paint_reference`), intensity = how fast. Car dots from lap %.
+(An age fade of the paint was tried in 0.1.5 and removed: owner saw FPS flicker.)
 
 Map has a follow mode (edit mode -> select map -> "follow me" + "follow range"):
 centred on me, rotated heading-up, paint drawn uncached for visible pieces only.
@@ -91,7 +96,8 @@ Relative: 3 cars each side + the leader pinned on top (dashed line under it) whe
 nearby. Position badge filled with the class color, black number (--c-badge-text) in
 multiclass; class tag = first letter of the class name, bold, class color; or +1L/-1L tag,
 radio icon from RadioTransmitCarIdx, iRating as "1.2k" (DriverInfo IRating; blank when
-0/1, i.e. offline/AI).
+0/1, i.e. offline/AI) on a badge in the license color (`--c-lic-*`, letter from
+LicString, LicColor is unreliable), 4 strengths by safety rating 0.x / 1.x / 2.x / 3+.
 
 Edit mode: click selects a widget -> panel sliders for its size, card background
 opacity and whole-widget opacity (per widget, saved with position in localStorage).

@@ -38,6 +38,9 @@ function fmtSigned(v, digits = 2) {
   return sign + Math.abs(v).toFixed(digits);
 }
 
+// round per-frame style values to visible steps: an unchanged value costs no restyle
+const step = (v, q) => Math.round(v / q) * q;
+
 function setText(el, text, cls) {
   if (el.textContent !== text) el.textContent = text;
   if (cls !== undefined && el.dataset.cls !== cls) {
@@ -77,10 +80,10 @@ class DeltaBar {
     if (Math.abs(this.rate) >= BAR_FLIP_RATE || !this.cls) this.cls = this.rate <= 0 ? "good" : "bad";
     const k = Math.min(1, Math.abs(this.rate) / this.rateFull);
     const alpha = BAR_MIN_ALPHA + (1 - BAR_MIN_ALPHA) * k;
-    const w = Math.min(mag / this.range, 1) * 50;
+    const w = step(Math.min(mag / this.range, 1) * 50, 0.5); // rounded: no restyle for invisible changes
     fill.style.width = `${w}%`;
     fill.style.left = v < 0 ? `${50 - w}%` : "50%";
-    fill.style.opacity = alpha.toFixed(2);
+    fill.style.opacity = step(alpha, 0.05).toFixed(2);
     fill.className = "fill " + this.cls;
   }
 }
@@ -155,7 +158,7 @@ function renderFuel(f) {
   setText($("f-level"), f.level == null ? "–" : `${f.level.toFixed(1)} L`);
   const fill = $("f-fill"), mark = $("f-mark");
   if (f.level != null && f.capacity) {
-    fill.style.width = `${Math.min(f.level / f.capacity, 1) * 100}%`;
+    fill.style.width = `${step(Math.min(f.level / f.capacity, 1) * 100, 0.5)}%`;
     const lapsLeft = f.lapsLeft ?? Infinity;
     fill.className = "tank-fill" + (lapsLeft < 2 ? " bad" : lapsLeft < 4 ? " warn" : "");
     // marker = fuel needed from here to the flag
@@ -270,6 +273,16 @@ function renderStandings(rows) {
     }
     setText(el.name, r.name);
     setText(el.ir, r.ir ? `${(r.ir / 1000).toFixed(1)}k` : "");
+    // badge in the license color, 4 strengths by safety rating (0.x / 1.x / 2.x / 3+)
+    const lic = r.ir && r.lic ? r.lic.charAt(0).toLowerCase() : "";
+    const licKey = lic && `${lic}${Math.min(3, Math.max(0, Math.floor(r.sr ?? 0)))}`;
+    if (el.ir.dataset.lic !== licKey) {
+      el.ir.dataset.lic = licKey;
+      el.ir.className = licKey ? `ir lic sr${licKey.slice(1)}` : "ir";
+      if (lic) el.ir.style.setProperty("--lic", `var(--c-lic-${lic}, var(--c-irating))`);
+      else el.ir.style.removeProperty("--lic");
+      el.ir.title = licKey ? `${r.lic} ${r.sr?.toFixed(2)}` : "";
+    }
     setText(el.best, fmtLap(r.best), r.bestIsClassBest ? "class-best" : "");
     let gap = "", cls = "";
     if (!r.isMe && r.gap != null) {
@@ -335,7 +348,7 @@ function renderRival(w, r, arrow) {
   const k = (Math.max(-1, Math.min(1, gain)) + 1) / 2; // 0 = losing fast, 1 = gaining fast
   setText(w.v, `${sign}${gapAbs.toFixed(2)}`, "");
   const base = ahead ? "var(--c-ahead)" : "var(--c-behind)";
-  const tint = `color-mix(in srgb, ${base} ${Math.round(10 + 90 * k)}%, var(--c-fg))`;
+  const tint = `color-mix(in srgb, ${base} ${step(10 + 90 * k, 5)}%, var(--c-fg))`;
   w.v.style.color = tint;
   // lapped / lapping car, or another class: tag it like the relative does
   const tag = r.lapRel ? ` ${r.lapRel > 0 ? "+" : ""}${r.lapRel}L` : multiclass && r.cls ? ` ${r.cls}` : "";
@@ -344,7 +357,7 @@ function renderRival(w, r, arrow) {
   // proximity: the closer the car, the fuller the bar
   const prox = Math.min(1, Math.max(0, 1 - gapAbs / PROX_RANGE_S));
   w.fill.style.left = "0";
-  w.fill.style.width = `${prox * 100}%`;
+  w.fill.style.width = `${step(prox * 100, 0.5)}%`;
   w.fill.style.opacity = "1";
   w.fill.style.background = tint;
   w.fill.className = "fill prox";
@@ -404,7 +417,7 @@ function renderDelta(d) {
       // number: hue by sign, intensity by how fast the delta is changing (like the bar)
       const k = d.best == null ? 0 : Math.min(1, Math.abs(w.bar.rate) / w.bar.rateFull);
       w.v.style.color = d.best == null ? ""
-        : `color-mix(in srgb, var(${d.best < 0 ? "--c-good" : "--c-bad"}) ${Math.round(35 + 65 * k)}%, var(--c-fg))`;
+        : `color-mix(in srgb, var(${d.best < 0 ? "--c-good" : "--c-bad"}) ${step(35 + 65 * k, 5)}%, var(--c-fg))`;
     } else if (w.kind === "ahead") {
       w.el.classList.toggle("idle", gone(w, d.ahead));
       renderRival(w, d.ahead, UP);
@@ -442,6 +455,7 @@ function refreshColors() {
     colors[k] = cs.getPropertyValue(k).trim();
   }
   colors.opacity = pct(cs.getPropertyValue("--bg-opacity"), 0.8);
+  colors.font = getComputedStyle(document.body).fontFamily; // canvas text (radar)
 }
 
 const RADAR_DEFAULT_RANGE = 20; // metres
@@ -461,8 +475,6 @@ function renderRadar(r) {
     canvas.width = canvas.height = Math.round(size * dpr);
   }
   const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, size, size);
 
   const c = size / 2;
   const rad = c - 2;
@@ -477,13 +489,23 @@ function renderRadar(r) {
   const showBehind = parseFloat(w.dataset.sb ?? RADAR_SHOW_BEHIND_M);
   const close = r.cars.some((x) => Math.abs(x.d) - (r.carLen || 0) <= (x.d >= 0 ? showAhead : showBehind));
 
-  w.classList.toggle("idle", !sideAlert && !close);
+  const idle = !sideAlert && !close;
+  w.classList.toggle("idle", idle);
+  // nothing to show: skip the drawing (it's fading out with its last frame anyway), unless
+  // placing it in edit mode. Even clearing would make the browser repaint the canvas.
+  if (idle && !document.body.classList.contains("edit")) {
+    radarAnim.t = 0;
+    radarAnim.lat.clear();
+    return;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
 
   // disc
   ctx.save();
   ctx.beginPath();
   ctx.arc(c, c, rad, 0, Math.PI * 2);
-  ctx.globalAlpha = pct(getComputedStyle($("w-radar")).getPropertyValue("--bg-opacity"), colors.opacity);
+  ctx.globalAlpha = pct(w.dataset.bg, colors.opacity); // per-widget bg, else global
   ctx.fillStyle = colors["--c-bg"];
   ctx.fill();
   ctx.globalAlpha = 1;
@@ -569,7 +591,7 @@ function renderRadar(r) {
   drawCar(c, c, null, colors["--c-me"]);
 
   // nearest ahead / behind distance
-  ctx.font = `${Math.round(size * 0.065)}px ${getComputedStyle(document.body).fontFamily}`;
+  ctx.font = `${Math.round(size * 0.065)}px ${colors.font}`;
   ctx.fillStyle = colors["--c-fg"];
   ctx.textAlign = "center";
   const inLine = visibleCars.filter((x) => x.side === "C");
@@ -584,9 +606,10 @@ function renderRadar(r) {
 
 // delta change per metre for full paint intensity (bar: 0.08 s/s at ~50 m/s)
 const PAINT_FULL_S_PER_M = 0.0016;
-// paint fades with age: fresh paint full, a lap old PAINT_OLD_ALPHA, so this lap's paint
-// behind me stands out from last lap's ahead of me even at the same intensity
-const PAINT_OLD_ALPHA = 0.5;
+// performance: the map redraws at MAP_FPS (cars move a pixel or two per frame), and the
+// static layer (road, paint, start line) is rebuilt at most every PAINT_REBUILD_MS
+const MAP_FPS = 30;
+const PAINT_REBUILD_MS = 300;
 const mapCache = { version: -1, points: null };
 const mapView = { heading: null };
 const MAP_ROAD_W = 11; // px, base track
@@ -601,7 +624,7 @@ const MAP_ROTATE_EASE = 0.2; // per-frame easing of the follow rotation
 // green, lost = red, stronger the faster it went. Then it's blurred along the track so
 // colors flow into each other. Rendered to an offscreen canvas only when the paint changes.
 const PAINT_BLUR_M = 60; // gaussian sigma along the track
-const paintCache = { key: "", canvas: null };
+const paintCache = { geo: "", paintKey: "", builtAt: 0, canvas: null, smKey: "", sm: null };
 
 function hexRgb(hex) {
   const h = (hex || "#888888").replace("#", "");
@@ -640,35 +663,70 @@ function smoothPaint(paint, segLen, paintNow) {
   return out;
 }
 
-function drawPaint(ctx, m, at, W, H, follow) {
+// smoothed paint, recomputed only when the paint data changes
+function smoothedPaint(m) {
   const paint = m.paint || [];
-  const S = paint.length;
-  if (!S) return;
-  if (follow) {
-    // view rotates every frame: no cache, draw only pieces on screen
-    if (paintCache.followKey !== `${m.version}|${m.paintNow}|${S}`) {
-      paintCache.followKey = `${m.version}|${m.paintNow}|${S}`;
-      paintCache.sm = smoothPaint(paint, m.segLen, m.paintNow);
-    }
-    strokePaint(ctx, paintCache.sm, S, at, (x, y) => x > -20 && y > -20 && x < W + 20 && y < H + 20, m.paintNow);
-    return;
+  const key = `${m.version}|${m.paintNow}|${paint.length}|${m.segLen}`;
+  if (paintCache.smKey !== key) {
+    paintCache.smKey = key;
+    paintCache.sm = smoothPaint(paint, m.segLen, m.paintNow);
   }
+  return paintCache.sm;
+}
+
+// overview: road + paint + start line in an offscreen layer; each frame only copies it
+// (and draws the cars). Geometry changes rebuild at once, paint updates at most every
+// PAINT_REBUILD_MS.
+function drawStaticLayer(ctx, m, at, W, H, N) {
   const dpr = window.devicePixelRatio || 1;
-  const key = [m.version, m.paintNow, S, W, H, dpr, m.mirror, colors["--c-good"], colors["--c-bad"], colors["--c-muted"]].join("|");
-  if (paintCache.key !== key) {
-    paintCache.key = key;
+  const geo = [mapCache.version, N, m.segLen, W, H, dpr, m.mirror, colors["--c-good"], colors["--c-bad"], colors["--c-muted"], colors["--c-fg"]].join("|");
+  const now = performance.now();
+  const paintKey = `${m.paintNow}|${(m.paint || []).length}`;
+  const stale = paintCache.geo !== geo || (paintCache.paintKey !== paintKey && now - paintCache.builtAt >= PAINT_REBUILD_MS);
+  if (stale) {
+    Object.assign(paintCache, { geo, paintKey, builtAt: now });
     const off = paintCache.canvas || (paintCache.canvas = document.createElement("canvas"));
     off.width = Math.round(W * dpr);
     off.height = Math.round(H * dpr);
     const o = off.getContext("2d");
     o.setTransform(dpr, 0, 0, dpr, 0, 0);
     o.clearRect(0, 0, W, H);
-    strokePaint(o, smoothPaint(paint, m.segLen, m.paintNow), S, at, () => true, m.paintNow);
+    drawRoad(o, at, N);
+    const S = (m.paint || []).length;
+    if (S) strokePaint(o, smoothedPaint(m), S, at, () => true, true);
+    drawStartLine(o, at);
   }
   ctx.drawImage(paintCache.canvas, 0, 0, W, H);
 }
 
-function strokePaint(o, sm, S, at, visible, now) {
+function drawRoad(ctx, at, N) {
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (let i = 0; i < N; i++) ctx[i ? "lineTo" : "moveTo"](...at(i / N));
+  ctx.closePath();
+  ctx.strokeStyle = colors["--c-muted"];
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = MAP_ROAD_W;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function drawStartLine(ctx, at) {
+  const [sx, sy] = at(0);
+  const [tx, ty] = at(0.003);
+  const nx = -(ty - sy), ny = tx - sx, nl = Math.hypot(nx, ny) || 1;
+  ctx.beginPath();
+  ctx.moveTo(sx - (nx / nl) * 9, sy - (ny / nl) * 9);
+  ctx.lineTo(sx + (nx / nl) * 9, sy + (ny / nl) * 9);
+  ctx.strokeStyle = colors["--c-fg"];
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+// gradient = smooth color flow between pieces (cached overview); follow mode redraws
+// every frame, so it uses one flat color per piece (gradients are the expensive part)
+function strokePaint(o, sm, S, at, visible, gradient) {
     o.lineWidth = MAP_PAINT_W;
     o.lineCap = "butt"; // round caps would stack alpha at every joint
     const good = hexRgb(colors["--c-good"]), bad = hexRgb(colors["--c-bad"]), mid = hexRgb(colors["--c-muted"]);
@@ -677,21 +735,22 @@ function strokePaint(o, sm, S, at, visible, now) {
       if (!p) return null;
       const t = Math.min(1, Math.abs(p.v));
       const [r, g, b] = mixRgb(mid, p.v < 0 ? good : bad, Math.min(1, t * 1.4));
-      // laps since this piece was painted: just behind me ~0, just ahead of me ~1
-      const age = now == null ? 0 : (((now - k) % S) + S) % S / S;
-      const fade = 1 - (1 - PAINT_OLD_ALPHA) * age;
-      return `rgba(${r},${g},${b},${((0.25 + 0.75 * t) * p.dim * p.cover * fade).toFixed(3)})`;
+      return `rgba(${r},${g},${b},${((0.25 + 0.75 * t) * p.dim * p.cover).toFixed(2)})`;
     };
     for (let k = 0; k < S; k++) {
       const c0 = colorAt(k), c1 = colorAt(k + 1);
       if (!c0 || !c1) continue;
-      // gradient from this piece's centre to the next one's: no visible steps
+      // from this piece's centre to the next one's: no visible steps
       const [x0, y0] = at((k + 0.5) / S), [x1, y1] = at((k + 1.5) / S);
       if (!visible(x0, y0) && !visible(x1, y1)) continue;
-      const grad = o.createLinearGradient(x0, y0, x1, y1);
-      grad.addColorStop(0, c0);
-      grad.addColorStop(1, c1);
-      o.strokeStyle = grad;
+      if (gradient) {
+        const grad = o.createLinearGradient(x0, y0, x1, y1);
+        grad.addColorStop(0, c0);
+        grad.addColorStop(1, c1);
+        o.strokeStyle = grad;
+      } else {
+        o.strokeStyle = c0;
+      }
       o.beginPath();
       o.moveTo(x0, y0);
       o.lineTo(...at((k + 1) / S));
@@ -716,7 +775,12 @@ function renderMap(m) {
   if (m.points !== undefined && (m.version !== mapCache.version || !mapCache.points)) {
     mapCache.version = m.version;
     mapCache.points = m.points;
+    mapCache.bbox = null;
   }
+  // cars move a pixel or two per frame: half the frame rate is enough
+  const tNow = performance.now();
+  if (tNow - (mapCache.drawnAt || 0) < 1000 / MAP_FPS - 2) return;
+  mapCache.drawnAt = tNow;
   const canvas = $("map");
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.clientWidth, H = canvas.clientHeight;
@@ -771,12 +835,17 @@ function renderMap(m) {
     };
   } else {
     mapView.heading = null;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const [x0, y] of pts) {
-      const x = mir * x0;
-      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    // bounding box only changes with the shape
+    if (!mapCache.bbox || mapCache.bbox.pts !== pts || mapCache.bbox.mir !== mir) {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const [x0, y] of pts) {
+        const x = mir * x0;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+      mapCache.bbox = { pts, mir, minX, maxX, minY, maxY };
     }
+    const { minX, maxX, minY, maxY } = mapCache.bbox;
     const pad = 10;
     const sc = Math.min((W - 2 * pad) / (maxX - minX || 1), (H - 2 * pad) / (maxY - minY || 1));
     const ox = (W - (maxX - minX) * sc) / 2, oy = (H - (maxY - minY) * sc) / 2;
@@ -784,30 +853,15 @@ function renderMap(m) {
   }
   const at = (pct) => toS(...world(pct));
 
-  // base track
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  for (let i = 0; i < N; i++) ctx[i ? "lineTo" : "moveTo"](...at(i / N));
-  ctx.closePath();
-  ctx.strokeStyle = colors["--c-muted"];
-  ctx.globalAlpha = 0.35;
-  ctx.lineWidth = MAP_ROAD_W;
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  drawPaint(ctx, m, at, W, H, follow);
-
-  // start/finish
-  const [sx, sy] = at(0);
-  const [tx, ty] = at(0.003);
-  const nx = -(ty - sy), ny = tx - sx, nl = Math.hypot(nx, ny) || 1;
-  ctx.beginPath();
-  ctx.moveTo(sx - (nx / nl) * 9, sy - (ny / nl) * 9);
-  ctx.lineTo(sx + (nx / nl) * 9, sy + (ny / nl) * 9);
-  ctx.strokeStyle = colors["--c-fg"];
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  if (follow) {
+    // view moves every frame: draw road + paint directly, only pieces on screen
+    drawRoad(ctx, at, N);
+    const S = (m.paint || []).length;
+    if (S) strokePaint(ctx, smoothedPaint(m), S, at, (x, y) => x > -20 && y > -20 && x < W + 20 && y < H + 20, false);
+    drawStartLine(ctx, at);
+  } else {
+    drawStaticLayer(ctx, m, at, W, H, N);
+  }
 
   // cars: others first, me on top
   // [pct, kind, class color, lapRel]: cars in their class color (pit: muted), a lap
@@ -833,6 +887,7 @@ function renderMap(m) {
 // ---------------------------------------------------------------- data loop
 
 let state = null;
+const shown = (id) => document.body.classList.contains("edit") || !$(id).classList.contains("off");
 function connect() {
   const ws = new WebSocket(`ws://${location.host}/ws`);
   ws.onmessage = (e) => { state = JSON.parse(e.data); };
@@ -844,7 +899,9 @@ function frame() {
   document.body.classList.toggle("offline", !online);
   document.body.classList.toggle("qualify", !!(online && state.session?.qualify));
   document.body.classList.toggle("away", !!(online && (state.replay || state.simFocused === false)));
-  if (online) {
+  // widgets can't be seen (faded out for replay / sim not focused): don't render at all
+  const hidden = !document.body.classList.contains("edit") && document.body.classList.contains("away");
+  if (online && !hidden) {
     // each widget isolated: one failing render must not blank the others
     for (const [render, data] of [
       [renderSession, state.session],
@@ -853,8 +910,9 @@ function frame() {
       [renderIncidents, state.incidents],
       [renderLaps, state.laps],
       [renderDelta, state.delta],
-      [renderRadar, state.radar],
-      [renderMap, state.map],
+      // canvases of switched-off widgets (display: none outside edit mode) aren't drawn
+      [renderRadar, shown("w-radar") && !state.session?.qualify && state.radar],
+      [renderMap, shown("w-map") && state.map],
       [renderClock, true],
     ]) {
       try {
@@ -922,6 +980,8 @@ function applyWidgetProps(el, p) {
   el.style.fontSize = `calc(13px * var(--ui-scale) * ${p.s ?? 1})`;
   if (p.bg != null) el.style.setProperty("--bg-opacity", `${p.bg}%`);
   else el.style.removeProperty("--bg-opacity");
+  if (p.bg != null) el.dataset.bg = p.bg; // canvas widgets read it without a style recalc
+  else delete el.dataset.bg;
   el.style.setProperty("--w-opacity", (p.op ?? 100) / 100);
   // widget-specific settings (radar range, map follow...) live on dataset
   for (const [key, , , , , , , only] of WIDGET_SLIDERS) {
@@ -936,18 +996,30 @@ function widgetProps(el) {
   return { x: 10, y: 10, ...DEFAULT_LAYOUT[el.dataset.id], ...saved[el.dataset.id] };
 }
 
+// Positions are saved in % of the screen but placed on whole device pixels: text at
+// fractional positions looks smeared on 1x (non-retina) displays.
+const devicePx = (v) => Math.round(v * (window.devicePixelRatio || 1)) / (window.devicePixelRatio || 1);
+function placeWidget(el, xPct, yPct) {
+  el.dataset.x = xPct;
+  el.dataset.y = yPct;
+  el.style.left = `${devicePx((xPct / 100) * innerWidth)}px`;
+  el.style.top = `${devicePx((yPct / 100) * innerHeight)}px`;
+}
+
 function applyLayout() {
   for (const el of document.querySelectorAll(".widget")) {
     const p = widgetProps(el);
-    el.style.left = `${p.x}%`;
-    el.style.top = `${p.y}%`;
+    placeWidget(el, p.x, p.y);
     applyWidgetProps(el, p);
   }
 }
+addEventListener("resize", () => {
+  for (const el of document.querySelectorAll(".widget")) placeWidget(el, +el.dataset.x, +el.dataset.y);
+});
 
 function updateWidget(el, changes) {
   const layout = load(LAYOUT_KEY);
-  const p = { ...widgetProps(el), x: parseFloat(el.style.left), y: parseFloat(el.style.top), ...changes };
+  const p = { ...widgetProps(el), x: +el.dataset.x, y: +el.dataset.y, ...changes };
   for (const k of Object.keys(p)) if (p[k] === undefined) delete p[k];
   layout[el.dataset.id] = p;
   save(LAYOUT_KEY, layout);
@@ -1151,8 +1223,7 @@ function enableDrag() {
   document.addEventListener("pointermove", (e) => {
     if (!drag) return;
     const [x, y] = snapDrag(drag.el, e.clientX - drag.dx, e.clientY - drag.dy, e.ctrlKey);
-    drag.el.style.left = `${(x / innerWidth) * 100}%`;
-    drag.el.style.top = `${(y / innerHeight) * 100}%`;
+    placeWidget(drag.el, (x / innerWidth) * 100, (y / innerHeight) * 100);
   });
   document.addEventListener("pointerup", () => {
     if (!drag) return;
@@ -1193,7 +1264,13 @@ const THEME_VARS = [
   ["--c-clock", "clock"],
   ["--c-mode", "session mode"],
   ["--c-track", "track name"],
-  ["--c-irating", "iRating"],
+  ["--c-irating", "iRating (no license)"],
+  ["--c-lic-r", "license R"],
+  ["--c-lic-d", "license D"],
+  ["--c-lic-c", "license C"],
+  ["--c-lic-b", "license B"],
+  ["--c-lic-a", "license A"],
+  ["--c-lic-p", "license Pro"],
   ["--c-last-lap", "last lap"],
   ["--c-optimal-lap", "optimal lap"],
   ["--c-radio", "radio (talking)"],
