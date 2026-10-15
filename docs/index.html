@@ -89,6 +89,7 @@
             <div class="live" data-w="delta-ahead"></div>
             <div class="live" data-w="delta-behind"></div>
             <div class="live" data-w="radar"></div>
+            <div class="live" data-w="hazard"></div>
           </div>
           <div class="col">
             <div class="live" data-w="map"></div>
@@ -154,6 +155,18 @@
           <ul>
             <li>appears only when a car is close: 2 m ahead or 3 m behind by default, adjustable</li>
             <li>hidden in qualifying</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="widget-doc">
+        <div class="specimen hud"><div class="live" data-w="hazard"></div></div>
+        <div>
+          <h3>// car in trouble ahead</h3>
+          <p>Like a spotter's call: when a car ahead spins, or crawls along because it's damaged, an alert tells you how far ahead it is: <code>spun ahead · 180 m</code>, <code>slow car ahead · 320 m</code>.</p>
+          <ul>
+            <li>that car's row in the relative and its dot on the map flash while it's spun</li>
+            <li>up to 500 m ahead; quiet before the green and for cars in the pit lane</li>
           </ul>
         </div>
       </article>

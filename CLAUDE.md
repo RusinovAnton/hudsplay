@@ -133,12 +133,14 @@ and "show ahead" / "show behind" (bumper gap, default 2 m / 3 m): it shows only 
 car is that close or alongside.
 Relative rows slide when order changes. Radar glow flashes at ~6 Hz when three wide.
 
-Hazard (`_hazard`): a rival rolling backwards, or off track and crawling, has spun; one
-crawling on track (< 20% of lap-average speed) for 1 s is slow (maybe damaged). Speed per
-car from its lap progress (`_track_speed`). Nearest one up to 500 m ahead -> center alert
+Hazard (`_hazard`): spun = rolling backwards, or off track and crawling for 0.5 s; slow
+(maybe damaged) = under 15% of lap-average speed for 2.5 s straight. Speed per car = its
+movement over the last 1 s (`_track_speed`; remote cars' positions arrive in steps, frame
+speed would dip to 0). Once flagged it stays until back above 40% for 2 s (owner: the
+blinking was annoying, avoid false positives); 5 s grace for cars that just appeared;
+off before the green and on pit road. Nearest one up to 500 m ahead -> center alert
 "spun ahead · 180 m" / "slow car ahead" (`--c-hazard`); its relative row and map dot get
-a hazard tint / ring, flashing when spun. Off before the green. Mock spins the car ahead
-every 45 s.
+a hazard tint / ring, flashing when spun. Mock spins the car ahead every 45 s.
 Fuel: tank bar brightness = live burn (FuelUsePerHour) vs my average over ~1 min (`_burn`):
 dim lifting / saving, bright flat out.
 

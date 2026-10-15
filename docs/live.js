@@ -139,6 +139,7 @@ const TEMPLATES = {
     <div class="kv"><span class="k">optimal</span><span class="v" id="l-opt">1:46.288</span></div></div>`,
   incidents: () => `<div class="widget" data-id="incidents"><div class="title">// incidents</div>
     <div class="big" data-f="inc"></div></div>`,
+  hazard: () => `<div class="widget" id="w-hazard" data-id="hazard"><svg class="alert-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.6 8A5.6 5.6 0 1 1 11.7 3.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9.6 1.6 12.4 3.7 10 5.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg><span data-f="hz"></span></div>`,
   "incident-alert": () => `<div class="widget" id="w-incident-alert" data-id="incident-alert">
     <svg class="alert-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.0 0.9 9.1 5.4 12.0 3.6 10.7 6.8 15.5 7.0 11.1 8.8 13.2 11.3 10.0 10.7 10.5 15.1 8.0 11.4 5.7 14.5 6.0 10.7 1.4 12.1 4.9 8.8 2.2 7.3 5.3 6.8 3.5 2.9 6.9 5.4Z" fill="currentColor" stroke="currentColor" stroke-width="0.6" stroke-linejoin="round"/></svg><span>contact</span> <span id="ia-x">4x</span></div>`,
   "delta-best": () => deltaTemplate("best", "// Δ session best"),
@@ -222,6 +223,9 @@ function updateText(inst, t, r) {
       g.className = "gap" + (gap == null ? "" : gap < 0 ? " ahead" : " behind");
       // someone keys the radio now and then
       row.classList.toggle("talking", num === (Math.floor(t / 9) % 2 ? 55 : 7) && t % 9 < 4);
+      const spun = num === SPUN_CAR && !!spinAt(t);
+      row.classList.toggle("trouble", spun);
+      row.classList.toggle("spun", spun);
     }
   } else if (kind === "fuel") {
     const level = 51.4 - ((t * 2.71) / LAP_S) % 30;
@@ -235,6 +239,10 @@ function updateText(inst, t, r) {
   } else if (kind === "incidents") {
     setHtml(f("inc"), `1x<span class="tot"> / 17x / 25x</span>`);
     f("inc").style.color = "color-mix(in srgb, var(--c-bad) 29%, var(--c-muted))";
+  } else if (kind === "hazard") {
+    const h = spinAt(t);
+    inst.el.classList.toggle("idle", !h);
+    if (h) setHtml(f("hz"), `spun ahead <span class="dist">· ${h.dist} m</span>`);
   } else if (kind === "incident-alert") {
     inst.el.classList.toggle("idle", t % 14 > 4); // pops up, fades out
   } else if (kind === "delta-best") {
@@ -360,6 +368,13 @@ const MAP_CARS = [
   [0.19, 1 / 97.8, "GTP", 0], [0.47, 1 / 108.9, "GTD", -1], [0.63, 1 / 96.9, "GTP", 0],
 ]
 const ME_START = 0.13;
+// every 20 s the LMP2 ahead (#33) spins: the alert counts down 220 m .. 20 m as I close in,
+// its relative row flashes and a ring flashes on the map
+const TRACK_M = 5793, SPUN_CAR = 33;
+function spinAt(t) {
+  const phase = t % 20;
+  return phase < 5 ? { dist: Math.round(220 - phase * 40) } : null;
+}
 
 let bbox = null;
 function mapTransform(W, H) {
@@ -464,6 +479,19 @@ function drawMap(inst, t) {
     ctx.stroke();
   };
   for (const [p0, v, cls, lap] of MAP_CARS) dot(p0 + v * t, CLASS_COLORS[cls], 4.5, lap < 0 ? colors["--c-lap-down"] : lap > 0 ? colors["--c-lap-up"] : null);
+  const h = spinAt(t);
+  if (h) {
+    const pct = myPct + h.dist / TRACK_M;
+    if (Math.floor(performance.now() / 300) % 2 === 0) { // flashing hazard ring
+      const [x, y] = at(pct);
+      ctx.beginPath();
+      ctx.arc(x, y, 8.5, 0, Math.PI * 2);
+      ctx.strokeStyle = colors["--c-hazard"];
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+    dot(pct, CLASS_COLORS.LMP2, 4.5);
+  }
   dot(myPct, colors["--c-me"], 6.5);
 }
 

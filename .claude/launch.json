@@ -18,6 +18,7 @@
       "runtimeExecutable": "uv",
       "runtimeArgs": [
         "run",
+        "--no-sync",
         "python",
         "-m",
         "http.server",

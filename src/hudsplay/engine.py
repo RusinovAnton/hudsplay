@@ -40,10 +40,15 @@ GAIN_TAU_S = 1.0  # smoothing of the "gaining right now" rate on the ▲/▼ wid
 CLOSING_WINDOW_LAPS = 0.15  # ▲/▼ "catching in N laps" uses the gap change over this much lap
 # a rival in trouble ahead (spun / crawling), see _hazard
 HAZARD_AHEAD_M = 500.0  # warn about trouble up to this far ahead of me
-SLOW_FRAC = 0.2  # slower than this x the lap-average speed = crawling
-SLOW_HOLD_S = 1.0  # ...for at least this long (a slow hairpin isn't trouble)
-BACKWARDS_MS = -2.0  # rolling backwards faster than this (m/s) = spun
-SPEED_TAU_S = 0.3  # smoothing of each car's speed
+SPEED_WINDOW_S = 1.0  # each car's speed = its movement over the last second (other cars'
+#                       positions arrive in steps, frame-to-frame speed would dip to 0)
+SLOW_FRAC = 0.15  # slower than this x the lap-average speed = crawling
+SLOW_ON_S = 2.5  # ...for this long straight = "slow" (a slow hairpin isn't trouble)
+SPUN_OFF_S = 0.5  # off track and crawling this long = "spun"
+BACKWARDS_MS = -2.0  # rolling backwards faster than this (m/s) = "spun" right away
+CLEAR_FRAC = 0.4  # flagged cars clear only above this x lap-average speed...
+CLEAR_S = 2.0  # ...held this long (no on / off blinking around the threshold)
+JOIN_GRACE_S = 5.0  # a car that just appeared (or re-aligned) isn't judged this long
 BURN_NOW_TAU_S = 0.5  # live fuel burn: current rate smoothed this much...
 BURN_AVG_TAU_S = 60.0  # ...compared with the average over about this long
 SIDE_HOLD_M = 4.0  # a car alongside keeps its side (ahead / behind) until this far past me
@@ -525,18 +530,18 @@ class Engine:
             self._track_speed(idx, tr, now)
 
     def _track_speed(self, idx: int, tr: "CarTrack", now: float) -> None:
-        """Each car's speed along the track (m/s, smoothed), from its lap progress;
-        negative when it rolls backwards."""
+        """Each car's speed along the track (m/s) over the last SPEED_WINDOW_S; negative
+        when it rolls backwards. None until a full window of history exists."""
         m = self.motion.get(idx)
-        if m is None or not self.track_len:
-            self.motion[idx] = [tr.progress, now, None, None]
-            return
-        dt = now - m[1]
-        if dt <= 0:
-            return
-        v = (tr.progress - m[0]) / dt * self.track_len
-        m[2] = v if m[2] is None else m[2] + (v - m[2]) * min(1.0, dt / SPEED_TAU_S)
-        m[0], m[1] = tr.progress, now
+        if m is None:
+            self.motion[idx] = m = {"hist": deque(), "since": now, "speed": None,
+                                    "slow_since": None, "fast_since": None, "kind": None}
+        hist = m["hist"]
+        hist.append((now, tr.progress))
+        while len(hist) > 2 and hist[1][0] <= now - SPEED_WINDOW_S:
+            hist.popleft()  # keep exactly one sample at least a window old
+        t0, p0 = hist[0]
+        m["speed"] = (tr.progress - p0) / (now - t0) * self.track_len             if self.track_len and now - t0 >= SPEED_WINDOW_S else None
 
     def _pace(self, t: dict, idx: int) -> float:
         for key in ("CarIdxLastLapTime", "CarIdxBestLapTime"):
@@ -920,31 +925,40 @@ class Engine:
         }
 
     def _hazard(self, t: dict, me: int, now: float) -> dict | None:
-        """Rivals in trouble, like a spotter's "car spun ahead": a car rolling backwards, or
-        off track and crawling, has spun; one crawling on track for SLOW_HOLD_S is slow.
-        Cars on pit road / in their stall are ignored, so is everything before the green
-        (cars stand still on the grid). Returns the nearest one up to HAZARD_AHEAD_M ahead."""
+        """Rivals in trouble, like a spotter's "car spun ahead". A car rolling backwards, or
+        off track and crawling (SPUN_OFF_S), has "spun"; one crawling on track for
+        SLOW_ON_S is "slow" (maybe damaged). Once flagged it stays flagged until it's
+        clearly back up to speed (CLEAR_FRAC for CLEAR_S), so it never blinks. Ignored:
+        cars on pit road / in their stall, cars that just appeared (JOIN_GRACE_S) and
+        everything before the green. Returns the nearest one up to HAZARD_AHEAD_M ahead."""
         self.trouble = {}
         if (t.get("SessionState") or 0) < 4 or not self.track_len or me not in self.tracks:
             return None
         surface = t.get("CarIdxTrackSurface") or []
         on_pit = t.get("CarIdxOnPitRoad") or []
-        crawl = SLOW_FRAC * self.track_len / self.est_lap  # m/s
+        avg = self.track_len / self.est_lap  # lap-average speed, m/s
         nearest = None
         for idx, m in self.motion.items():
-            if idx == me or idx not in self.drivers or m[2] is None:
+            if idx == me or idx not in self.drivers:
                 continue
             surf = surface[idx] if idx < len(surface) else 3  # irsdk_TrkLoc, 3 = on track
-            if surf in (1, 2) or (idx < len(on_pit) and on_pit[idx]):  # pit stall / pit lane
-                m[3] = None
+            pit = surf in (1, 2) or (idx < len(on_pit) and on_pit[idx])  # stall / pit lane
+            v = m["speed"]
+            if pit or v is None or now - m["since"] < JOIN_GRACE_S:
+                m.update(slow_since=None, fast_since=None, kind=None)
                 continue
-            slow = m[2] < crawl
-            m[3] = (m[3] or now) if slow else None
-            kind = None
-            if m[2] < BACKWARDS_MS or (surf == 0 and slow):  # 0 = off track
+            slow = v < SLOW_FRAC * avg
+            m["slow_since"] = (m["slow_since"] or now) if slow else None
+            m["fast_since"] = (m["fast_since"] or now) if v > CLEAR_FRAC * avg else None
+            slow_for = now - m["slow_since"] if slow else 0.0
+            kind = m["kind"]
+            if v < BACKWARDS_MS or (surf == 0 and slow_for >= SPUN_OFF_S):  # 0 = off track
                 kind = "spun"
-            elif slow and now - m[3] >= SLOW_HOLD_S:
+            elif kind is None and slow_for >= SLOW_ON_S:
                 kind = "slow"
+            if kind and m["fast_since"] is not None and now - m["fast_since"] >= CLEAR_S:
+                kind = None  # back up to speed
+            m["kind"] = kind
             if kind is None:
                 continue
             self.trouble[idx] = kind
