@@ -24,7 +24,7 @@ class Config:
     hz: int = 60
 
     # standings: rows shown on each side of the player
-    standings_each_side: int = 2
+    standings_each_side: int = 3
     # only show cars from the player's class (multiclass races)
     standings_class_only: bool = True
     # "short" -> "M. Lastname", "full" -> as in iRacing

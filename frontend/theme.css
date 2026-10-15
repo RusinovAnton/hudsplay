@@ -13,20 +13,21 @@
   --c-label: #569cd6;
 
   --c-pos: #b5cea8;
+  --c-badge-text: #000000;
   --c-number: #ce9178;
   --c-name: #9cdcfe;
   --c-best: #dcdcaa;
   --c-best-class: #c586c0;
   --c-me: #ffd700;
-  --c-lap-up: #f48771;
+  --c-lap-up: #f14c4c;
   --c-lap-down: #3794ff;
 
-  /* global: every car ahead / behind (relative gaps, rivals, map dots, radar) */
-  --c-ahead: #f48771;
-  --c-behind: #89d185;
+  /* global: every car ahead / behind (relative gaps, rivals, radar) */
+  --c-ahead: #f14c4c;
+  --c-behind: #23d18b;
 
-  --c-good: #89d185;
-  --c-bad: #f48771;
+  --c-good: #23d18b;
+  --c-bad: #f14c4c;
   --c-warn: #cca700;
   --c-fuel: #4fc1ff;
   --c-incidents: #ce9178;
@@ -39,5 +40,5 @@
   --c-radio: #4fc1ff;
 
   --c-radar-car: #9e9e9e;
-  --c-radar-danger: #f14c4c;
+  --c-radar-danger: #ff2d2d;
 }

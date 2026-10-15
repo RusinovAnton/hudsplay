@@ -9,3 +9,9 @@ packaging/build/
 packaging/dist/
 packaging/installer/
 packaging/*.spec
+
+# track map side files (trackmap.py) and the share staging folder
+maps/*.rerecord
+maps/*.prev.json
+maps/*.candidate.json
+maps-to-share/

@@ -12,7 +12,7 @@ echo  [1/2] backend exe
 call uv sync || exit /b 1
 call uv run pyinstaller --noconfirm --clean --onedir --windowed --name hudsplay-backend ^
   --distpath packaging\dist --workpath packaging\build --specpath packaging ^
-  --paths src --add-data "../frontend;frontend" --collect-data pycountry ^
+  --paths src --add-data "../frontend;frontend" --add-data "../maps;maps" --collect-data pycountry ^
   --icon ..\electron\assets\icon.ico packaging\backend.py || exit /b 1
 
 echo.

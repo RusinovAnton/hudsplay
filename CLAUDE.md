@@ -8,17 +8,26 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
 - Minimal, VS Code Dark+ look, Fira Code, `// title` comment-style headers.
 - Every data type gets its own color variable (`frontend/theme.css`), editable live in edit mode.
 - Ahead/behind is ONE global color pair (`--c-ahead` red, `--c-behind` green) used by
-  relative gaps, ▲/▼, map rival dots and radar (dimmed). Don't add per-widget copies.
+  relative gaps, ▲/▼ and radar (dimmed). Don't add per-widget copies.
+- Map car dots: class color (pit = muted), lap-up / lap-down cars get a --c-lap-up red /
+  --c-lap-down blue ring. No ahead/behind coloring on the map.
+- Color themes: presets after popular VS Code themes (`THEMES` in app.js, Dark+ default =
+  `theme.css`), picked first in edit mode -> colors; custom colors are saved per theme
+  (localStorage `overlay.colors.v2`), "reset colors" drops them for the current theme.
+  Every theme uses its most vivid red/green for gain/loss.
 - Color-blind palettes (edit mode buttons, `PALETTES` in app.js) must cover every
   red/green var: good/bad, ahead/behind, radar-danger, lap-up/down.
+- Widgets fade out in replay (`IsReplayPlaying`) and while iRacing isn't the foreground
+  window (`focus.py`, checked by the server); edit mode always shows them.
 - No pedal/input widget.
 - Arrows ▲/▼ instead of the words "ahead"/"behind" in the UI.
 - ▲/▼ widgets: gap + proximity bar + debounced status line ("catching in N laps").
   Ahead "+", behind "-". Color is ALWAYS the global ahead/behind color; gaining vs
   losing only changes saturation (full color = gaining, washed to --c-fg gray = losing).
   Relative widget still uses iRacing's convention: ahead "-", behind "+".
-- Delta bars: color = sign (green good / red bad), intensity = direction
-  (bright while |delta| grows, faded while it shrinks).
+- Delta bar: side = sign, color = direction right now (green while the delta falls, even
+  when still +; red while it rises, even when still -), intensity = rate of change.
+  The delta number itself stays colored by sign.
 - Python is managed by uv only (`uv run`, `uv sync`); never system Python or `python -m venv`.
 
 ## Packaging
@@ -61,7 +70,14 @@ and radar (incl. three-wide) render. Gaps, trend, fuel, laps estimate and radar
 compute correctly from fake telemetry.
 
 Map widget: shape recorded on the first clean lap per track (Speed + YawNorth
-dead-reckoning, `trackmap.py`), cached in `maps/<TrackID>-<config>.json`. Painted
+dead-reckoning, `trackmap.py`), cached in `maps/<TrackID>-<config>.json`. User maps
+(DATA/maps) win over maps shipped in the installer (repo `maps/`, bundled by
+build-installer.bat). Each app run re-records the first clean laps under the hood: two
+laps that agree with each other but not the map replace it. Laps with a spin (yaw rate)
+or a small self-crossing loop are never saved; a saved map with a loop is re-recorded.
+Tray "Track map" submenu (polls `/api/map`): re-record next lap (old map kept as
+`.prev.json`), report on GitHub when the re-record came out the same, share maps the
+app doesn't ship (copied to `maps-to-share/`, opens GitHub's upload page = fork + PR). Painted
 every ~10 m green/red by delta gained/lost vs `delta_reference` (same reference as
 the delta bar). Car dots from lap %.
 
@@ -70,7 +86,9 @@ centred on me, rotated heading-up, paint drawn uncached for visible pieces only.
 Session "pos" is colored vs grid position (recorded at SessionState 3/4): green
 gained, red lost, stronger with more places.
 
-Relative: position badge (class color in multiclass), class tag or +1L/-1L tag,
+Relative: 3 cars each side + the leader pinned on top (dashed line under it) when not
+nearby. Position badge filled with the class color, black number (--c-badge-text) in
+multiclass; class tag = first letter of the class name, bold, class color; or +1L/-1L tag,
 radio icon from RadioTransmitCarIdx, iRating as "1.2k" (DriverInfo IRating; blank when
 0/1, i.e. offline/AI).
 
@@ -92,7 +110,12 @@ road skipped unless I'm on it), tagged +1L/-1L or class. Hidden in qualifying.
 In practice + qualifying the relative becomes "standings": every car with a time (best
 lap from live, session ResultsPositions or remembered, so pit/garage/disconnected cars
 stay), window around me, gap = their best - mine. Radar hidden in qualifying.
-Race: no laps-total estimate before SessionState 4 (gridding, pace laps).
+Race: no laps-total estimate before SessionState 4 (gridding, pace laps); until then the
+relative is a "// grid" list (QualifyResultsInfo order, else grid order), also while
+I'm still in the garage. Lap progress per car (`CarTrack`) is unwrapped from lap % and
+re-aligned to CarIdxLapCompleted whenever it changes and on pit exit (mine re-aligns
+everyone), so a pit-lane start doesn't leave every car +1L.
+Map recording also drops a lap on any incident point.
 
 **Not yet verified against real iRacing.** First Windows session checklist:
 

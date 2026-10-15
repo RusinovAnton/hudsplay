@@ -11,8 +11,11 @@ from aiohttp import web
 
 from .config import ROOT, Config
 from .engine import Engine
+from .focus import sim_focused
+from .trackmap import shareable_maps
 
 FRONTEND = ROOT / "frontend"
+FOCUS_POLL_S = 0.25
 log = logging.getLogger("hudsplay")
 
 
@@ -50,6 +53,9 @@ def build_app(source, cfg: Config) -> web.Application:
         engine = app["engine"]
         period = 1 / cfg.hz
         last_error = 0.0
+        # foreground window check (OS call): a few times a second is plenty
+        check_focus = getattr(source, "focus_check", True)
+        focused, focus_at = None, 0.0
         while True:
             started = time.perf_counter()
             try:
@@ -61,6 +67,10 @@ def build_app(source, cfg: Config) -> web.Application:
                     log.exception("engine update failed")
                     last_error = time.monotonic()
                 state = None
+            if state is not None and check_focus:
+                if started - focus_at >= FOCUS_POLL_S:
+                    focused, focus_at = sim_focused(), started
+                state["simFocused"] = focused
             if state is not None and clients:
                 msg = json.dumps(state, separators=(",", ":"))
                 await asyncio.gather(*(ws.send_str(msg) for ws in list(clients)), return_exceptions=True)
@@ -72,8 +82,22 @@ def build_app(source, cfg: Config) -> web.Application:
     async def on_cleanup(app):
         app["pump"].cancel()
 
+    # track map management, used by the tray menu (electron/main.js)
+    async def map_info(_req):
+        return web.json_response(app["engine"].map.info())
+
+    async def map_rerecord(_req):
+        ok = app["engine"].map.request_rerecord()
+        return web.json_response({"ok": ok, **app["engine"].map.info()})
+
+    async def maps_share(_req):
+        return web.json_response(shareable_maps())
+
     app.router.add_get("/", index)
     app.router.add_get("/ws", ws_handler)
+    app.router.add_get("/api/map", map_info)
+    app.router.add_post("/api/map/rerecord", map_rerecord)
+    app.router.add_post("/api/maps/share", maps_share)
     app.router.add_static("/static", FRONTEND)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)

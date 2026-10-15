@@ -37,15 +37,17 @@ INCIDENT_TYPES = {1: "off-track", 2: "loss of control", 4: "contact"}
 INCIDENT_MERGE_S = 2.5  # iRacing escalates in steps (1x -> 2x): merge into one incident
 INCIDENT_ALERT_S = 4.0  # the "contact 4x" alert shows this long after the last step
 GAIN_TAU_S = 1.0  # smoothing of the "gaining right now" rate on the ▲/▼ widgets
+CLOSING_WINDOW_LAPS = 0.15  # ▲/▼ "catching in N laps" uses the gap change over this much lap
 SPOTTER_SIDES = {2: ["R"], 3: ["L"], 4: ["L", "R"], 5: ["R", "R2"], 6: ["L", "L2"]}
 
 
 class CarTrack:
     """Continuous lap progress for one car + the session time it reached each bucket."""
 
-    __slots__ = ("progress", "last_pct", "last_bucket", "last_time", "times")
+    __slots__ = ("progress", "last_pct", "last_bucket", "last_time", "times", "last_laps")
 
     def __init__(self, laps_completed: int, pct: float, now: float):
+        self.last_laps = laps_completed
         self.progress = laps_completed + pct
         self.last_pct = pct
         self.last_bucket = int(self.progress * N_BUCKETS)
@@ -73,6 +75,27 @@ class CarTrack:
                 cutoff = bucket - 2 * N_BUCKETS
                 self.times = {k: v for k, v in self.times.items() if k >= cutoff}
         self.last_time = now
+
+    def resync(self, laps_completed: int, pct: float, force: bool = False) -> int:
+        """Line progress up with iRacing's lap counter (whole laps only): whenever the
+        counter changes, or forced (pit exit). Progress is unwrapped from lap %, so a
+        start-line crossing iRacing doesn't count (grid start vs a pit start) would
+        otherwise leave every car +1L forever. Returns the laps shifted."""
+        if laps_completed < 0:
+            return 0
+        if force:
+            if pct < 0.02 or pct > 0.98:  # on the line: the counter may be mid-tick
+                return 0
+        # counter ticks may come a frame before lap % wraps: wait until past the line
+        elif laps_completed == self.last_laps or pct >= 0.5:
+            return 0
+        self.last_laps = laps_completed
+        k = round(laps_completed + pct - self.progress)
+        if k:
+            self.progress += k
+            self.last_bucket += k * N_BUCKETS
+            self.times = {b + k * N_BUCKETS: t for b, t in self.times.items()}
+        return k
 
     def time_at(self, progress: float) -> float | None:
         x = progress * N_BUCKETS
@@ -104,11 +127,24 @@ class IncidentLog:
             self.last_x = self.last_x + step if merge else step
             self.last_at = now
 
-    def summary(self, limit: int | None, now: float) -> dict:
+    def summary(self, limit: int | None, warn: tuple[int | None, int | None], now: float) -> dict:
         alert = None
         if self.last_at is not None and now - self.last_at <= INCIDENT_ALERT_S:
             alert = {"label": INCIDENT_TYPES.get(self.last_x, "incident"), "x": self.last_x}
-        return {"count": self.count, "limit": limit, "alert": alert}
+        return {"count": self.count, "limit": limit, "warn": _next_warning(self.count, *warn, limit), "alert": alert}
+
+
+def _next_warning(count: int | None, initial: int | None, every: int | None, dq: int | None) -> int | None:
+    """Next penalty warning threshold, like iRacing's "17x / 17x / 25x": the initial limit
+    until it's passed, then every `every` more. None when warnings are off or past DQ."""
+    if not initial:
+        return None
+    nxt = initial
+    if count is not None and count > initial:
+        if not every:
+            return None
+        nxt = initial + math.ceil((count - initial) / every) * every
+    return nxt if dq is None or nxt < dq else None
 
 
 class OptimalLap:
@@ -234,17 +270,21 @@ class Engine:
         self.track_config = ""
         self.fuel_capacity: float | None = None
         self.est_lap = 100.0
+        self.grid_slot: dict[int, int] = {}
         self.incident_limit: int | None = None
+        self.incident_warn: tuple[int | None, int | None] = (None, None)
         self.sessions: dict[int, dict] = {}
         self.multiclass = False
         self.session_num = None
         self.map = TrackMap()
         self._frame = 0
         self._sent_map_version = -1
+        self._map_inc = None  # my incident count last frame (map recording)
         self._reset()
 
     def _reset(self):
         self.tracks: dict[int, CarTrack] = {}
+        self._on_pit: dict[int, bool] = {}  # last frame's CarIdxOnPitRoad (pit exit = re-align)
         self.fuel = FuelCalc()
         self.incidents = IncidentLog()
         self.optimal = OptimalLap(getattr(self, "sector_starts", None))
@@ -284,13 +324,19 @@ class Engine:
         name = wi.get("TrackDisplayShortName") or wi.get("TrackDisplayName") or ""
         config = wi.get("TrackConfigName") or ""
         self.track_name, self.track_config = name, config
-        self.incident_limit = _limit((wi.get("WeekendOptions") or {}).get("IncidentLimit"))
+        wo = wi.get("WeekendOptions") or {}
+        self.incident_limit = _limit(wo.get("IncidentLimit"))  # DQ
+        # penalty warnings: first at the initial limit, then every subsequent limit more
+        self.incident_warn = (_limit(wo.get("IncidentWarningInitialLimit")), _limit(wo.get("IncidentWarningSubsequentLimit")))
         track_len = _track_length_m(wi.get("TrackLength"))
         if track_len != self.track_len:
             self.track_len = track_len
             self.paint.reset(track_len)
         track_id = wi.get("TrackID")
-        self.map.set_track(f"{track_id}-{wi.get('TrackConfigName') or 'default'}" if track_id is not None else None)
+        self.map.set_track(
+            f"{track_id}-{wi.get('TrackConfigName') or 'default'}" if track_id is not None else None,
+            " ".join(x for x in (wi.get("TrackDisplayName") or name, config) if x),
+        )
         sectors = sorted(
             float(s["SectorStartPct"])
             for s in (info.get("SplitTimeInfo") or {}).get("Sectors") or []
@@ -300,6 +346,12 @@ class Engine:
         if starts != getattr(self, "sector_starts", None):
             self.sector_starts = starts
             self.optimal = OptimalLap(starts)
+        # starting grid from qualifying (QualifyResultsInfo Position is 0-based)
+        self.grid_slot = {
+            r["CarIdx"]: int(r.get("Position", 999))
+            for r in (info.get("QualifyResultsInfo") or {}).get("Results") or []
+            if r.get("CarIdx") is not None
+        }
         self.sessions = {
             s.get("SessionNum"): {
                 "type": s.get("SessionType", ""),
@@ -343,6 +395,7 @@ class Engine:
 
         return {
             "connected": True,
+            "replay": bool(t.get("IsReplayPlaying")),  # widgets fade out (not in edit mode)
             "session": session,
             "relative": standings,
             "fuel": self._fuel(t, me, laps_to_go),
@@ -355,7 +408,7 @@ class Engine:
                 "behind": self._rival(t, behind, me, now, False, laps_to_go),
             },
             "radar": self._radar(t, me),
-            "map": self._map(t, me, now, self._delta(t, self.cfg.map_paint_reference), ahead, behind),
+            "map": self._map(t, me, now, self._delta(t, self.cfg.map_paint_reference), session["race"]),
         }
 
     def resend_map(self) -> None:
@@ -366,28 +419,37 @@ class Engine:
         var = DELTA_VARS.get(ref, DELTA_VARS["session_best"])[0]
         return t.get(var) if t.get(var + "_OK") else None
 
-    def _map(self, t: dict, me: int, now: float, delta, ahead, behind) -> dict:
+    def _map(self, t: dict, me: int, now: float, delta, race: bool) -> dict:
         pcts = t.get("CarIdxLapDistPct") or []
         done = t.get("CarIdxLapCompleted") or []
         pct = pcts[me] if me < len(pcts) else -1
         laps_done = done[me] if me < len(done) else 0
         clean = bool(t.get("IsOnTrack", True)) and not t.get("OnPitRoad")
-        self.map.update(now, pct, laps_done, t.get("Speed"), t.get("YawNorth"), clean)
+        # any incident point this lap spoils the map recording (also off-tracks with no spin)
+        inc = t.get("PlayerCarMyIncidentCount")
+        map_clean = clean and (inc is None or inc == self._map_inc)
+        self._map_inc = inc
+        self.map.update(now, pct, laps_done, t.get("Speed"), t.get("YawNorth"), map_clean)
         self.paint.update(pct, laps_done, delta if clean else None)
 
         on_pit = t.get("CarIdxOnPitRoad") or []
-        # [pct, kind]: 0 car, 1 me, 2 in pit, 3 rival ahead, 4 rival behind
+        # [pct, kind, class color, lapRel]: kind 0 car, 1 me, 2 in pit;
+        # lapRel +1 = a lap up on me, -1 = a lap down (race only)
+        my = self.tracks.get(me)
         cars = []
-        for idx in self.tracks:
-            kind = 1 if idx == me else 3 if idx == ahead else 4 if idx == behind else 0
-            if kind == 0 and idx < len(on_pit) and on_pit[idx]:
-                kind = 2
-            cars.append([round(pcts[idx], 4), kind])
+        for idx, tr in self.tracks.items():
+            kind = 1 if idx == me else 2 if idx < len(on_pit) and on_pit[idx] else 0
+            lap_rel = 0
+            if race and my is not None and idx != me:
+                lap_rel = round(tr.progress - my.progress - self._track_dp(t, idx, me))
+            d = self.drivers.get(idx)
+            cars.append([round(pcts[idx], 4), kind, d["clsColor"] if d else None, lap_rel])
 
         out = {
             "version": self.map.version,
             "mirror": self.cfg.map_mirror,
             "recording": self.map.recording_pct,
+            "status": self.map.status,
             "segLen": round(self.paint.seg_len_m, 2),
             "paint": self.paint.merged(),
             "paintNow": self.paint.seg,
@@ -403,16 +465,26 @@ class Engine:
     def _advance_tracks(self, t: dict, now: float) -> None:
         pcts = t.get("CarIdxLapDistPct") or []
         laps = t.get("CarIdxLapCompleted") or []
+        pit = t.get("CarIdxOnPitRoad") or []
+        me = t.get("PlayerCarIdx", self.player_idx)
+        # pit exit: re-align that car right away; my own pit exit (e.g. a pit-lane start)
+        # re-aligns everyone, so lap tags are right from the start, not after a lap
+        exited = {i for i in self.drivers if i < len(pit) and not pit[i] and self._on_pit.get(i)}
+        self._on_pit = {i: bool(pit[i]) for i in self.drivers if i < len(pit)}
+        everyone = me in exited
         for idx in self.drivers:
             pct = pcts[idx] if idx < len(pcts) else -1
             if pct is None or pct < 0:  # not in world (garage, disconnected)
                 self.tracks.pop(idx, None)
                 continue
             tr = self.tracks.get(idx)
+            lc = laps[idx] if idx < len(laps) else -1
             if tr is None:
-                self.tracks[idx] = CarTrack(max(laps[idx], 0), pct, now)
+                self.tracks[idx] = CarTrack(max(lc, 0), pct, now)
             else:
                 tr.advance(pct, now)
+                if tr.resync(lc, pct, force=everyone or idx in exited) and idx == me:
+                    self.trends.clear()  # keyed by my progress: history no longer lines up
 
     def _pace(self, t: dict, idx: int) -> float:
         for key in ("CarIdxLastLapTime", "CarIdxBestLapTime"):
@@ -468,6 +540,7 @@ class Engine:
             "qualify": "qualify" in stype.lower(),
             # relative -> best-lap standings
             "standings": any(k in stype.lower() for k in ("qualify", "practice")),
+            "grid": race and not started,  # relative shows the grid until the green
             "lap": min(lap, total) if total else lap,
             "lapsTotal": total,
             "lapsEstimated": estimated,
@@ -500,8 +573,34 @@ class Engine:
             return [], 0, len(order)
 
         my_pos = next(p for _, idx, p in entries if idx == me)
-        rows = self._quali(t, me) if by_best else self._relative(t, me, now, race, positions)
+        if by_best:
+            rows = self._quali(t, me)
+        elif race and (t.get("SessionState") or 0) < 4:  # before the green: grid, not relative
+            rows = self._grid(t, me)
+        else:
+            rows = self._relative(t, me, now, race, positions)
         return rows, my_pos, len(order)
+
+    def _grid(self, t: dict, me: int) -> list[dict]:
+        """Before the start: every car in the world (gridded or rolling to the grid) plus
+        me, in grid order: qualifying result, else order on the grid (front = furthest
+        along). Works while I'm still in the garage too."""
+        row = self._row_maker(t, me)
+        cars = set(self.tracks) | ({me} if me in self.drivers else set())
+        cars &= set(self.drivers)
+        far = {idx: self.tracks[idx].progress if idx in self.tracks else -1e9 for idx in cars}
+        order = sorted(cars, key=lambda i: (self.grid_slot.get(i, 999), -far[i]))
+        n = self.cfg.standings_each_side
+        i = order.index(me) if me in order else 0
+        start = max(0, min(i - n, len(order) - (2 * n + 1)))
+        window = order[start : start + 2 * n + 1]
+        pinned = bool(order) and order[0] not in window
+        if pinned:  # pole is always on top
+            window.insert(0, order[0])
+        rows = [row(idx, order.index(idx) + 1) for idx in window]
+        if pinned:
+            rows[0]["leader"] = True
+        return rows
 
     def _positions(self, t: dict, race: bool, class_only: bool) -> dict[int, int]:
         """Position per car (in its class if class_only). iRacing's CarIdxPosition only
@@ -616,11 +715,17 @@ class Engine:
         start = max(0, min(i - n, len(order) - (2 * n + 1)))
         my_best = self._best(t, me)
         row = self._row_maker(t, me)
+        window = order[start : start + 2 * n + 1]
+        pinned = bool(order) and order[0] not in window
+        if pinned:  # P1 is always on top
+            window.insert(0, order[0])
         rows = []
-        for idx in order[start : start + 2 * n + 1]:
+        for idx in window:
             b = self._best(t, idx)
             gap = b - my_best if b and my_best and idx != me else None
             rows.append(row(idx, rank.get(idx, 0), gap))
+        if pinned:
+            rows[0]["leader"] = True
         return rows
 
     def _relative(self, t: dict, me: int, now: float, race: bool, positions: dict) -> list[dict]:
@@ -654,7 +759,20 @@ class Engine:
         rows = [row(idx, dp, tr) for _, dp, idx, tr in reversed(ahead)]
         rows.append(row(me, 0.0, my))
         rows += [row(idx, dp, tr) for _, dp, idx, tr in behind]
+        # the leader is always on top, even when not near me on track
+        lead = self._class_leader(me, positions)
+        if lead is not None and lead in self.tracks and all(r["id"] != lead for r in rows):
+            leader_row = row(lead, self._track_dp(t, lead, me), self.tracks[lead])
+            leader_row["leader"] = True
+            rows.insert(0, leader_row)
         return rows
+
+    def _class_leader(self, me: int, positions: dict) -> int | None:
+        """P1 (in my class when positions are per class)."""
+        firsts = [idx for idx, p in positions.items() if p == 1 and idx in self.drivers]
+        my_cls = self.drivers.get(me, {}).get("cls")
+        same = [idx for idx in firsts if self.drivers[idx]["cls"] == my_cls]
+        return (same or firsts or [None])[0]
 
     def _rival(self, t: dict, idx: int | None, me: int, now: float, is_ahead: bool, laps_to_go: float | None = None):
         """Gap to the nearest car ahead/behind on track, how it changed vs one lap ago,
@@ -697,10 +815,17 @@ class Engine:
         # ahead: gap shrinking -> g falls -> negative. behind: they close -> g rises -> positive.
         trend = g - prev if prev is not None else None
         gap = g if is_ahead else -g
-        # closing speed in s/lap (> 0 = gap shrinking); needs >= 0.1 lap of history
+        # closing speed in s/lap (> 0 = gap shrinking) over the last CLOSING_WINDOW_LAPS,
+        # so the status line follows what's happening now, not the whole last lap
+        w = int(CLOSING_WINDOW_LAPS * TREND_BUCKETS)
+        recent = hist.get(ab - w)
+        recent_span = CLOSING_WINDOW_LAPS
+        if recent is None:
+            recent, recent_span = prev, span
         closing = None
-        if trend is not None and span >= 0.1:
-            closing = (-trend if is_ahead else trend) / span
+        if recent is not None and recent_span >= 0.05:
+            change = g - recent
+            closing = (-change if is_ahead else change) / recent_span
         catch = gap / closing if closing and closing > 0.005 and gap > 0 else None
         d = self.drivers[idx]
         return {
@@ -718,7 +843,7 @@ class Engine:
 
     def _incidents(self, t: dict, now: float) -> dict:
         self.incidents.update(t.get("PlayerCarMyIncidentCount"), now)
-        return self.incidents.summary(self.incident_limit, now)
+        return self.incidents.summary(self.incident_limit, self.incident_warn, now)
 
     def _laps(self, t: dict, me: int) -> dict:
         my = self.tracks.get(me)

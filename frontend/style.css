@@ -141,7 +141,7 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 .srow {
   will-change: transform;
   display: grid;
-  grid-template-columns: 4.5ch 4ch 5ch 1.35em 16ch 1.1em 6ch 8ch 8ch;
+  grid-template-columns: 4.5ch 4ch 5ch 1.35em 16ch 1.1em 3ch 8ch 8ch;
   column-gap: 1ch;
   align-items: center;
   padding: 0 0.4em;
@@ -185,11 +185,11 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
   background: color-mix(in srgb, var(--c-pos) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--c-pos) 45%, transparent);
 }
-/* multiclass: badge takes the car's class color */
+/* multiclass: badge filled with the car's class color */
 .srow .pos.class-color, .srow.me .pos.class-color {
-  color: var(--badge);
-  background: color-mix(in srgb, var(--badge) 20%, transparent);
-  border-color: color-mix(in srgb, var(--badge) 60%, transparent);
+  color: var(--c-badge-text);
+  background: var(--badge);
+  border-color: var(--badge);
 }
 /* class short name or lap up/down tag */
 /* long class names are clipped so they never run into the lap time */
@@ -201,6 +201,9 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.srow .tag.cls { font-weight: 700; }
+/* leader pinned on top when not near me: a gap line separates it */
+.srow.leader { border-bottom: 1px dashed var(--c-border); }
 .srow .tag.lap-up { color: var(--c-lap-up); font-weight: 500; }
 .srow .tag.lap-down { color: var(--c-lap-down); font-weight: 500; }
 .srow.me .pos {
@@ -305,6 +308,8 @@ body.qualify:not(.edit) #w-radar { display: none; }
 
 /* ---------- offline / edit */
 body.offline:not(.edit) .widget { opacity: 0; }
+/* replay, or iRacing not the focused window: fade out (edit mode still shows them) */
+body.away:not(.edit) .widget { opacity: 0 !important; transition: opacity 0.6s; }
 #status {
   position: fixed;
   left: 50%;
@@ -368,6 +373,7 @@ body.edit .widget.selected { outline: 2px solid var(--c-warn); }
 #edit-panel {
   display: none;
   position: fixed;
+  z-index: 100; /* above every widget, incl. their on/off buttons */
   right: 16px;
   top: 16px;
   max-height: calc(100vh - 32px);
@@ -396,6 +402,22 @@ body.edit #edit-panel { display: block; }
   padding: 0;
 }
 #edit-panel input[type="range"] { width: 8rem; }
+/* the color list is long: it scrolls on its own, theme picker and buttons stay visible */
+#edit-panel #theme-rows {
+  max-height: 40vh;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-top: 6px;
+  border-top: 1px solid #3c3c3c;
+}
+#edit-panel select {
+  font: inherit;
+  color: #d4d4d4;
+  background: #2d2d2d;
+  border: 1px solid #3c3c3c;
+  border-radius: 3px;
+}
+#edit-panel .sub { color: #808080; margin-top: 8px; }
 #edit-panel .buttons { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 #edit-panel .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
 #edit-panel .panel-head .buttons { margin-top: 0; }

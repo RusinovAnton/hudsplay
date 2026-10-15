@@ -5,7 +5,7 @@
 //   Ctrl+Shift+R  reload frontend
 //   Ctrl+Shift+Q  quit
 // Tray icon: same actions + start with Windows + open settings folder.
-const { app, BrowserWindow, Menu, Tray, globalShortcut, ipcMain, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, dialog, globalShortcut, ipcMain, screen, shell } = require("electron");
 const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
@@ -15,6 +15,8 @@ const ICON = path.join(__dirname, "assets", "icon.ico");
 // backend's config.toml, maps/, hudsplay.log (see src/hudsplay/config.py)
 const DATA_DIR = app.isPackaged ? path.join(app.getPath("appData"), "HUDsplay", "data") : path.resolve(__dirname, "..");
 const BACKEND_RESTART_MS = 2000;
+const REPO = "https://github.com/RusinovAnton/hudsplay";
+const MAP_POLL_MS = 3000; // tray "Track map" submenu follows the backend's current track
 
 let win;
 let tray;
@@ -106,6 +108,105 @@ function setEditMode(on) {
 
 const autostartOn = () => app.getLoginItemSettings().openAtLogin;
 
+// ---------------------------------------------------------------- track maps (tray)
+
+let mapInfo = null; // GET /api/map: current track, its map and what the backend does with it
+
+async function api(pathname, method = "GET") {
+  const res = await fetch(new globalThis.URL(pathname, URL), { method });
+  return res.json();
+}
+
+async function pollMap() {
+  let info = null;
+  try { info = await api("api/map"); } catch (_e) {} // backend not up (yet)
+  if (JSON.stringify(info) !== JSON.stringify(mapInfo)) { mapInfo = info; updateTray(); }
+}
+
+const MAP_STATUS = {
+  recording: "drive 1 clean lap to record it",
+  rerecording: "re-recording on the next clean lap",
+  checking: "checking it on the first clean laps",
+  ok: "checked, unchanged",
+  updated: "recorded",
+  unchanged: "re-recorded, came out the same",
+};
+
+async function rerecordMap() {
+  try { mapInfo = await api("api/map/rerecord", "POST"); } catch (_e) {}
+  updateTray();
+}
+
+// the re-recorded map came out the same: it's not my driving, report it
+function reportMap() {
+  const m = mapInfo || {};
+  const title = `Track map wrong: ${m.track || m.key}`;
+  const body = [
+    `Track: ${m.track || "?"}`,
+    `Map key: \`${m.key}\``,
+    `HUDsplay ${app.getVersion()}`,
+    "",
+    "What's wrong with the map (where on the lap):",
+    "",
+    "",
+    `Re-recording it gave the same shape. Please attach \`${m.key}.json\` from the folder HUDsplay opened.`,
+  ].join("\n");
+  shell.openExternal(`${REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`);
+  if (m.file) shell.showItemInFolder(m.file);
+}
+
+// maps recorded here that HUDsplay doesn't ship yet: GitHub's upload page makes the PR
+async function shareMaps() {
+  let res;
+  try { res = await api("api/maps/share", "POST"); } catch (_e) {
+    dialog.showMessageBox({ type: "error", title: "HUDsplay", message: "HUDsplay backend is not running." });
+    return;
+  }
+  if (!res.files.length) {
+    dialog.showMessageBox({
+      type: "info", title: "HUDsplay",
+      message: "Nothing to share",
+      detail: app.isPackaged
+        ? "HUDsplay already ships every track map you've recorded."
+        : "Dev checkout: maps are recorded straight into the repo's maps/ folder, commit them with git.",
+    });
+    return;
+  }
+  shell.openPath(res.dir);
+  shell.openExternal(`${REPO}/upload/default/maps`);
+  dialog.showMessageBox({
+    type: "info", title: "HUDsplay",
+    message: `Share ${res.files.length} track map${res.files.length > 1 ? "s" : ""}`,
+    detail: `${res.files.join("\n")}\n\nDrag the files from the folder that just opened onto the GitHub page, ` +
+      "then click \"Propose changes\" and \"Create pull request\". GitHub forks the repo for you if needed.",
+  });
+}
+
+function mapMenu() {
+  const m = mapInfo;
+  if (!m) return [{ label: "HUDsplay backend not running", enabled: false }];
+  if (!m.key) return [{ label: "No session: join one in iRacing", enabled: false }];
+  const status = !m.hasMap ? MAP_STATUS.recording : MAP_STATUS[m.status] || "";
+  return [
+    { label: m.track || m.key, enabled: false },
+    { label: `${m.source === "bundled" ? "shipped map" : m.hasMap ? "your map" : "no map"}: ${status}`, enabled: false },
+    { type: "separator" },
+    {
+      label: "Map is wrong: re-record next lap",
+      enabled: m.hasMap && m.status !== "rerecording",
+      click: rerecordMap,
+    },
+    {
+      label: m.status === "unchanged" ? "Report map problem on GitHub…" : "Report map problem (re-record it first)",
+      enabled: m.status === "unchanged",
+      click: reportMap,
+    },
+    { type: "separator" },
+    { label: "Share my track maps (pull request)…", click: shareMaps },
+    { label: "Open maps folder", click: () => { const dir = m.mapsDir; fs.mkdirSync(dir, { recursive: true }); shell.openPath(dir); } },
+  ];
+}
+
 function updateTray() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
@@ -113,6 +214,7 @@ function updateTray() {
     { type: "separator" },
     { label: "Edit mode", type: "checkbox", checked: editMode, accelerator: "Ctrl+Shift+O", click: () => setEditMode(!editMode) },
     { label: "Reload overlay", accelerator: "Ctrl+Shift+R", click: () => win.reload() },
+    { label: "Track map", submenu: mapMenu() },
     { type: "separator" },
     {
       label: "Start with Windows",
@@ -151,6 +253,8 @@ app.whenReady().then(() => {
   startBackend();
   createWindow();
   createTray();
+  setInterval(pollMap, MAP_POLL_MS);
+  pollMap();
   globalShortcut.register("CommandOrControl+Shift+O", () => setEditMode(!editMode));
   globalShortcut.register("CommandOrControl+Shift+R", () => win.reload());
   globalShortcut.register("CommandOrControl+Shift+Q", () => app.quit());

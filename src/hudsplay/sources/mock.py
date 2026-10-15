@@ -133,6 +133,8 @@ DRIVERS = [
 
 
 class MockSource:
+    focus_check = False  # no sim window to be in front of: never fade the widgets
+
     def __init__(self, seed: int = 1):
         rng = random.Random(seed)
         self.rng = rng
@@ -192,6 +194,11 @@ class MockSource:
                 "TrackDisplayName": "Autodromo Nazionale Monza",
                 "TrackDisplayShortName": "Monza",
                 "TrackConfigName": "Grand Prix",
+                "WeekendOptions": {
+                    "IncidentLimit": 25,
+                    "IncidentWarningInitialLimit": 17,
+                    "IncidentWarningSubsequentLimit": 4,
+                },
             },
             "SessionInfo": {
                 "Sessions": [{"SessionNum": 0, "SessionType": "Race", "SessionLaps": "unlimited"}]

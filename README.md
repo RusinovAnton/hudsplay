@@ -98,7 +98,7 @@ that it's saved in `maps/`.
 
 ```toml
 [hudsplay]
-standings_each_side = 2
+standings_each_side = 3
 standings_class_only = true
 name_format = "short"   # or "full"
 radar_range_m = 50   # max distance sent; view range is set in edit mode

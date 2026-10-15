@@ -47,11 +47,13 @@ function setText(el, text, cls) {
   }
 }
 
-// Delta bar. Sign picks the color: negative = good (green, grows left),
-// positive = bad (red, grows right). Intensity shows direction: bright while
-// |delta| is growing, faded while it's shrinking back toward zero.
-const BAR_RATE_FULL = { best: 0.15, rival: 0.08 }; // s/s of |delta| change for full intensity
+// Delta bar. Side shows the sign (negative grows left, positive right); color shows
+// where it's heading right now: green while the delta is falling (gaining time, even
+// when still behind the reference), red while it's rising (losing time, even when
+// still ahead). Intensity = how fast it's changing.
+const BAR_RATE_FULL = { best: 0.15, rival: 0.08 }; // s/s of delta change for full intensity
 const BAR_MIN_ALPHA = 0.25;
+const BAR_FLIP_RATE = 0.01; // s/s: below this the color holds (no flicker when steady)
 
 class DeltaBar {
   constructor(fill, range, rateFull) {
@@ -68,17 +70,18 @@ class DeltaBar {
     const mag = Math.abs(v);
     if (this.prev != null && v !== this.prev.v) {
       const dt = Math.max(now - this.t, 1e-3);
-      const raw = (mag - Math.abs(this.prev.v)) / dt;
+      const raw = (v - this.prev.v) / dt; // signed: < 0 = gaining time
       this.rate += (raw - this.rate) * (1 - Math.exp(-dt / 0.35)); // ~0.35 s smoothing
     }
     if (this.prev == null || v !== this.prev.v) { this.prev = { v }; this.t = now; }
-    const k = Math.max(-1, Math.min(1, this.rate / this.rateFull));
-    const alpha = BAR_MIN_ALPHA + (1 - BAR_MIN_ALPHA) * (k + 1) / 2;
+    if (Math.abs(this.rate) >= BAR_FLIP_RATE || !this.cls) this.cls = this.rate <= 0 ? "good" : "bad";
+    const k = Math.min(1, Math.abs(this.rate) / this.rateFull);
+    const alpha = BAR_MIN_ALPHA + (1 - BAR_MIN_ALPHA) * k;
     const w = Math.min(mag / this.range, 1) * 50;
     fill.style.width = `${w}%`;
     fill.style.left = v < 0 ? `${50 - w}%` : "50%";
     fill.style.opacity = alpha.toFixed(2);
-    fill.className = "fill " + (v < 0 ? "good" : "bad");
+    fill.className = "fill " + this.cls;
   }
 }
 
@@ -132,9 +135,11 @@ function renderIncidents(inc) {
     setText($("ia-x"), `${inc.alert.x}x`);
   }
   if (inc.count == null) { setText(el, "–", ""); return; }
-  setHtml(el, `${inc.count}x` + (inc.limit ? `<span class="tot"> / ${inc.limit}</span>` : ""));
-  // 0x gray, then ever more red toward the limit
-  const k = Math.min(inc.count / (inc.limit || INCIDENT_FULL_X), 1);
+  // count / next penalty warning / DQ, like iRacing (each part only when the session has it)
+  const limits = [inc.warn, inc.limit].filter(Boolean).map((x) => ` / ${x}x`).join("");
+  setHtml(el, `${inc.count}x` + (limits ? `<span class="tot">${limits}</span>` : ""));
+  // 0x gray, then ever more red toward the next limit
+  const k = Math.min(inc.count / (inc.warn || inc.limit || INCIDENT_FULL_X), 1);
   el.style.color = inc.count > 0
     ? `color-mix(in srgb, var(--c-bad) ${Math.round(25 + 75 * k)}%, var(--c-muted))`
     : "var(--c-muted)";
@@ -218,7 +223,7 @@ function reorderRows(container, ids) {
 let multiclass = false;
 
 function renderStandings(rows) {
-  setText($("st-title"), state.session?.standings ? "// standings" : "// relative");
+  setText($("st-title"), state.session?.standings ? "// standings" : state.session?.grid ? "// grid" : "// relative");
   const container = $("st-rows");
   const ids = rows.map((r) => String(r.id));
   for (const [id, el] of stRows) {
@@ -237,6 +242,7 @@ function renderStandings(rows) {
   rows.forEach((r) => {
     const el = stRows.get(String(r.id));
     el.row.classList.toggle("me", r.isMe);
+    el.row.classList.toggle("leader", !!r.leader); // pinned P1, not next to me
     el.row.classList.toggle("pit", r.inPit);
     el.row.classList.toggle("talking", !!r.radio);
     el.row.classList.toggle("lap-up", r.lapRel > 0);
@@ -250,7 +256,9 @@ function renderStandings(rows) {
       el.pos.classList.toggle("class-color", !!clsColor);
     }
     const lapTag = r.lapRel ? `${r.lapRel > 0 ? "+" : ""}${r.lapRel}L` : "";
-    setText(el.tag, lapTag || (multiclass ? r.cls : ""), lapTag ? (r.lapRel > 0 ? "lap-up" : "lap-down") : multiclass ? "cls" : "");
+    // class: first letter only, bold, in the class color
+    const clsTag = multiclass && r.cls ? r.cls.trim().charAt(0).toUpperCase() : "";
+    setText(el.tag, lapTag || clsTag, lapTag ? (r.lapRel > 0 ? "lap-up" : "lap-down") : clsTag ? "cls" : "");
     if (!lapTag && multiclass) el.tag.style.color = r.clsColor || "";
     else el.tag.style.color = "";
     setText(el.num, `#${r.num}`);
@@ -307,8 +315,8 @@ const PROX_RANGE_S = 2.0; // proximity bar: empty at this gap, full at 0
 const CATCH_MAX_LAPS = 10; // beyond this a "catching in N laps" number is noise
 const CLOSE_GAP_S = 0.5; // below this gap the cars are together: no catch estimate
 const HOLD_S_PER_LAP = 0.02; // gap change below this per lap reads as "holding"
-const STATUS_HOLD_MS = 1500; // new status must be stable this long before it shows
-const STATUS_NUM_MS = 1000; // lap count refresh interval
+const STATUS_HOLD_MS = 400; // new status must be stable this long before it shows
+const STATUS_NUM_MS = 250; // lap count refresh interval
 
 function renderRival(w, r, arrow) {
   const ahead = arrow === UP;
@@ -426,7 +434,7 @@ function pct(value, fallback) {
 
 function refreshColors() {
   const cs = getComputedStyle(root);
-  for (const k of ["--c-bg", "--c-border", "--c-me", "--c-muted", "--c-radar-car", "--c-radar-danger", "--c-fg", "--c-good", "--c-bad", "--c-ahead", "--c-behind"]) {
+  for (const k of ["--c-bg", "--c-border", "--c-me", "--c-muted", "--c-radar-car", "--c-radar-danger", "--c-fg", "--c-good", "--c-bad", "--c-ahead", "--c-behind", "--c-lap-up", "--c-lap-down"]) {
     colors[k] = cs.getPropertyValue(k).trim();
   }
   colors.opacity = pct(cs.getPropertyValue("--bg-opacity"), 0.8);
@@ -713,8 +721,11 @@ function renderMap(m) {
   // no recorded shape yet: cars and paint go on a circle of the track's length
   const recorded = !!mapCache.points;
   const pts = mapCache.points || placeholderShape((m.segLen || 10) * ((m.paint || []).length || 400));
-  setText($("map-title"), recorded ? "// map"
-    : m.recording != null ? `// map · recording ${Math.round(m.recording * 100)}%`
+  // re-recording keeps showing the old shape until the new lap is in
+  const redo = m.status === "rerecording";
+  setText($("map-title"), m.recording != null ? `// map · ${redo ? "re-" : ""}recording ${Math.round(m.recording * 100)}%`
+    : redo ? "// map · re-record: drive 1 clean lap"
+    : recorded ? "// map"
     : "// map · drive 1 clean lap to record");
 
   // world position (metres, y up) at a lap %, mirror applied
@@ -789,19 +800,22 @@ function renderMap(m) {
   ctx.stroke();
 
   // cars: others first, me on top
-  // [color, radius px]; every dot gets a dark border so it stands out on the paint
-  const style = { 0: ["--c-radar-car", 4.5], 2: ["--c-muted", 3.5], 3: ["--c-ahead", 5.5], 4: ["--c-behind", 5.5], 1: ["--c-me", 6.5] };
+  // [pct, kind, class color, lapRel]: cars in their class color (pit: muted), a lap
+  // up / down gets a lap-up / lap-down ring, everything else a dark border so it
+  // stands out on the paint
+  const radius = { 0: 4.5, 1: 6.5, 2: 3.5 };
   const cars = [...(m.cars || [])].sort((a, b) => (a[1] === 1) - (b[1] === 1));
-  for (const [pct, kind] of cars) {
+  for (const [pct, kind, clsColor, lapRel] of cars) {
     const [x, y] = at(pct);
     if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue;
-    const [col, r] = style[kind] || style[0];
+    const r = radius[kind] ?? radius[0];
+    const lapped = kind !== 1 && lapRel ? (lapRel > 0 ? "--c-lap-up" : "--c-lap-down") : "";
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = colors[col];
+    ctx.fillStyle = kind === 1 ? colors["--c-me"] : kind === 2 ? colors["--c-muted"] : clsColor || colors["--c-radar-car"];
     ctx.fill();
-    ctx.strokeStyle = colors["--c-bg"];
-    ctx.lineWidth = kind === 1 ? 2 : 1.5;
+    ctx.strokeStyle = colors[lapped || "--c-bg"];
+    ctx.lineWidth = lapped ? 2 : kind === 1 ? 2 : 1.5;
     ctx.stroke();
   }
 }
@@ -819,6 +833,7 @@ function frame() {
   const online = !!(state && state.connected);
   document.body.classList.toggle("offline", !online);
   document.body.classList.toggle("qualify", !!(online && state.session?.qualify));
+  document.body.classList.toggle("away", !!(online && (state.replay || state.simFocused === false)));
   if (online) {
     // each widget isolated: one failing render must not blank the others
     for (const [render, data] of [
@@ -849,15 +864,15 @@ const DEFAULT_LAYOUT = {
   session: { x: 1.5, y: 3 },
   clock: { x: 10, y: 3 },
   relative: { x: 1.5, y: 21 },
-  fuel: { x: 1.5, y: 42 },
+  fuel: { x: 1.5, y: 50 },
   "delta-best": { x: 40, y: 3 },
   "delta-ahead": { x: 40, y: 10 },
   "delta-behind": { x: 40, y: 18 },
   "delta-closest": { x: 40, y: 26 },
   radar: { x: 44, y: 55 },
   map: { x: 78, y: 3 },
-  incidents: { x: 1.5, y: 63 },
-  laps: { x: 10, y: 42 },
+  incidents: { x: 1.5, y: 71 },
+  laps: { x: 10, y: 50 },
   "incident-alert": { x: 44, y: 40 },
 };
 
@@ -964,7 +979,8 @@ function placePanel(x, y) {
   const r = p.getBoundingClientRect();
   x = Math.min(Math.max(0, x), innerWidth - Math.min(r.width, innerWidth));
   y = Math.min(Math.max(0, y), innerHeight - 40); // keep the header reachable
-  Object.assign(p.style, { left: `${x}px`, top: `${y}px`, right: "auto" });
+  // never taller than what's left below its top edge, so it scrolls instead of being cut
+  Object.assign(p.style, { left: `${x}px`, top: `${y}px`, right: "auto", maxHeight: `${innerHeight - y - 16}px` });
   return { x, y };
 }
 
@@ -1076,6 +1092,7 @@ const THEME_VARS = [
   ["--c-name", "driver name"],
   ["--c-number", "car number"],
   ["--c-pos", "position"],
+  ["--c-badge-text", "position on class color"],
   ["--c-best", "best lap"],
   ["--c-best-class", "fastest lap in class"],
   ["--c-ahead", "car ahead (global)"],
@@ -1109,13 +1126,95 @@ const THEME_SLIDERS = [
   ["--ui-scale", "ui scale", 0.6, 2, 0.05, ""],
 ];
 
+// Theme presets after popular VS Code themes. Each palette maps onto every color var;
+// gain / loss (good, bad, ahead, behind, radar alongside) use the theme's most vivid
+// red and green so they stand out on its background.
+function themeFrom(p) {
+  return {
+    "--c-bg": p.bg, "--c-border": p.border, "--c-fg": p.fg, "--c-muted": p.muted,
+    "--c-comment": p.comment, "--c-label": p.blue,
+    "--c-pos": p.num, "--c-number": p.orange, "--c-name": p.cyan, "--c-best": p.yellow,
+    "--c-best-class": p.purple, "--c-me": p.gold, "--c-badge-text": "#000000",
+    "--c-lap-up": p.red, "--c-lap-down": p.lapDown,
+    "--c-ahead": p.red, "--c-behind": p.green, "--c-good": p.green, "--c-bad": p.red,
+    "--c-warn": p.warn, "--c-fuel": p.teal, "--c-incidents": p.orange, "--c-clock": p.fg,
+    "--c-mode": p.yellow, "--c-track": p.cyan, "--c-irating": p.num, "--c-last-lap": p.fg,
+    "--c-optimal-lap": p.purple, "--c-radio": p.teal, "--c-radar-car": p.car,
+    "--c-radar-danger": p.danger,
+  };
+}
+const DEFAULT_THEME = "Dark+";
+const THEMES = {
+  "Dark+": themeFrom({
+    bg: "#1e1e1e", border: "#3c3c3c", fg: "#d4d4d4", muted: "#808080", comment: "#6a9955",
+    blue: "#569cd6", num: "#b5cea8", orange: "#ce9178", cyan: "#9cdcfe", yellow: "#dcdcaa",
+    purple: "#c586c0", gold: "#ffd700", red: "#f14c4c", green: "#23d18b", lapDown: "#3794ff",
+    warn: "#cca700", teal: "#4fc1ff", car: "#9e9e9e", danger: "#ff2d2d",
+  }),
+  "One Dark Pro": themeFrom({
+    bg: "#282c34", border: "#3e4451", fg: "#abb2bf", muted: "#5c6370", comment: "#7f848e",
+    blue: "#61afef", num: "#d19a66", orange: "#d19a66", cyan: "#56b6c2", yellow: "#e5c07b",
+    purple: "#c678dd", gold: "#e5c07b", red: "#ff5c6c", green: "#8cd665", lapDown: "#4aa5f0",
+    warn: "#d19a66", teal: "#56b6c2", car: "#9da5b4", danger: "#ff3b4e",
+  }),
+  "Dracula": themeFrom({
+    bg: "#282a36", border: "#44475a", fg: "#f8f8f2", muted: "#6272a4", comment: "#6272a4",
+    blue: "#bd93f9", num: "#bd93f9", orange: "#ffb86c", cyan: "#8be9fd", yellow: "#f1fa8c",
+    purple: "#ff79c6", gold: "#f1fa8c", red: "#ff5555", green: "#50fa7b", lapDown: "#8be9fd",
+    warn: "#ffb86c", teal: "#8be9fd", car: "#a4a8c0", danger: "#ff3030",
+  }),
+  "Monokai": themeFrom({
+    bg: "#272822", border: "#49483e", fg: "#f8f8f2", muted: "#75715e", comment: "#75715e",
+    blue: "#66d9ef", num: "#ae81ff", orange: "#fd971f", cyan: "#66d9ef", yellow: "#e6db74",
+    purple: "#ae81ff", gold: "#e6db74", red: "#f92672", green: "#a6e22e", lapDown: "#66d9ef",
+    warn: "#fd971f", teal: "#66d9ef", car: "#a59f85", danger: "#ff1f5a",
+  }),
+  "GitHub Dark": themeFrom({
+    bg: "#0d1117", border: "#30363d", fg: "#e6edf3", muted: "#8b949e", comment: "#8b949e",
+    blue: "#79c0ff", num: "#79c0ff", orange: "#ffa657", cyan: "#a5d6ff", yellow: "#e3b341",
+    purple: "#d2a8ff", gold: "#e3b341", red: "#f85149", green: "#3fb950", lapDown: "#58a6ff",
+    warn: "#d29922", teal: "#56d4dd", car: "#8b949e", danger: "#ff3b30",
+  }),
+  "Night Owl": themeFrom({
+    bg: "#011627", border: "#1d3b53", fg: "#d6deeb", muted: "#637777", comment: "#637777",
+    blue: "#82aaff", num: "#f78c6c", orange: "#f78c6c", cyan: "#7fdbca", yellow: "#ecc48d",
+    purple: "#c792ea", gold: "#ffcb8b", red: "#ef5350", green: "#22da6e", lapDown: "#82aaff",
+    warn: "#ffcb8b", teal: "#7fdbca", car: "#8badc1", danger: "#ff2c3b",
+  }),
+  "Tokyo Night": themeFrom({
+    bg: "#1a1b26", border: "#292e42", fg: "#c0caf5", muted: "#565f89", comment: "#565f89",
+    blue: "#7aa2f7", num: "#ff9e64", orange: "#ff9e64", cyan: "#7dcfff", yellow: "#e0af68",
+    purple: "#bb9af7", gold: "#e0af68", red: "#ff5370", green: "#9ece6a", lapDown: "#7aa2f7",
+    warn: "#e0af68", teal: "#73daca", car: "#a9b1d6", danger: "#ff3355",
+  }),
+  "Solarized Dark": themeFrom({
+    bg: "#002b36", border: "#073642", fg: "#93a1a1", muted: "#657b83", comment: "#586e75",
+    blue: "#268bd2", num: "#2aa198", orange: "#cb4b16", cyan: "#2aa198", yellow: "#b58900",
+    purple: "#6c71c4", gold: "#b58900", red: "#ff4136", green: "#a6c400", lapDown: "#268bd2",
+    warn: "#b58900", teal: "#2aa198", car: "#839496", danger: "#ff2a1f",
+  }),
+};
+
+// Saved colors: chosen theme + the user's changes per theme (kept when switching themes
+// and back) + theme-independent sliders (bg opacity, ui scale).
+const COLORS_KEY = "overlay.colors.v2";
+const SLIDER_KEYS = new Set(THEME_SLIDERS.map((s) => s[0]));
+function colorState() {
+  const s = load(COLORS_KEY);
+  if (s.theme) return { overrides: {}, shared: {}, ...s };
+  // first run after the update: old single color set = my changes to Dark+
+  const old = load(THEME_KEY), state = { theme: DEFAULT_THEME, overrides: {}, shared: {} };
+  for (const [k, v] of Object.entries(old)) {
+    if (SLIDER_KEYS.has(k)) state.shared[k] = v;
+    else (state.overrides[DEFAULT_THEME] ??= {})[k] = v;
+  }
+  save(COLORS_KEY, state);
+  return state;
+}
+
 // one-click palettes for every good/bad + ahead/behind color; individual pickers still override
 const PALETTES = {
-  "red / green": {
-    "--c-good": "#89d185", "--c-bad": "#f48771",
-    "--c-ahead": "#f48771", "--c-behind": "#89d185", "--c-radar-danger": "#f14c4c",
-    "--c-lap-up": "#f48771", "--c-lap-down": "#3794ff",
-  },
+  "red / green": null, // the selected theme's own red / green
   // Okabe-Ito: safe for protanopia / deuteranopia (red-green)
   "blue / orange": {
     "--c-good": "#56b4e9", "--c-bad": "#e69f00",
@@ -1137,7 +1236,12 @@ function buildPaletteButtons() {
     const b = document.createElement("button");
     b.textContent = name;
     b.addEventListener("click", () => {
-      for (const [k, v] of Object.entries(vars)) setThemeVar(k, v);
+      const s = colorState();
+      const keys = Object.keys(vars || PALETTES["blue / orange"]);
+      if (vars) for (const k of keys) (s.overrides[s.theme] ??= {})[k] = vars[k];
+      else for (const k of keys) delete s.overrides[s.theme]?.[k];
+      save(COLORS_KEY, s);
+      applyTheme();
       buildEditPanel();
     });
     box.appendChild(b);
@@ -1145,18 +1249,44 @@ function buildPaletteButtons() {
 }
 
 function applyTheme() {
-  for (const [k, v] of Object.entries(load(THEME_KEY))) root.style.setProperty(k, v);
+  const s = colorState();
+  for (const [k] of [...THEME_VARS, ...THEME_SLIDERS]) root.style.removeProperty(k);
+  const vars = { ...(THEMES[s.theme] || THEMES[DEFAULT_THEME]), ...s.overrides[s.theme], ...s.shared };
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
   refreshColors();
 }
 
 function setThemeVar(k, v) {
   root.style.setProperty(k, v);
   if (selected) syncSelectedPanel();
-  const theme = load(THEME_KEY);
-  theme[k] = v;
-  save(THEME_KEY, theme);
+  const s = colorState();
+  if (SLIDER_KEYS.has(k)) s.shared[k] = v;
+  else (s.overrides[s.theme] ??= {})[k] = v;
+  save(COLORS_KEY, s);
   refreshColors();
+  syncThemeSelect();
 }
+
+function setThemeName(name) {
+  const s = colorState();
+  s.theme = name;
+  save(COLORS_KEY, s);
+  applyTheme();
+  buildEditPanel();
+}
+
+// "*" marks themes the user has changed
+function syncThemeSelect() {
+  const sel = $("theme-select"), s = colorState();
+  const opts = Object.keys(THEMES).map((n) => [n, n + (Object.keys(s.overrides[n] || {}).length ? " *" : "")]);
+  if (sel.options.length !== opts.length) {
+    sel.innerHTML = "";
+    for (const [n] of opts) sel.add(new Option(n, n));
+  }
+  opts.forEach(([, label], i) => { if (sel.options[i].text !== label) sel.options[i].text = label; });
+  sel.value = THEMES[s.theme] ? s.theme : DEFAULT_THEME;
+}
+$("theme-select").addEventListener("change", (e) => setThemeName(e.target.value));
 
 function buildEditPanel() {
   const wrows = $("widget-rows");
@@ -1173,6 +1303,7 @@ function buildEditPanel() {
     wrows.appendChild(row);
   }
 
+  syncThemeSelect();
   const rows = $("theme-rows");
   const cs = getComputedStyle(root);
   rows.innerHTML = "";
@@ -1215,10 +1346,12 @@ $("btn-copy").addEventListener("click", async () => {
   catch { $("btn-copy").textContent = "see console"; }
   setTimeout(() => ($("btn-copy").textContent = "copy css"), 1500);
 });
+// back to the selected theme's own colors (sliders and other themes' changes stay)
 $("btn-reset-theme").addEventListener("click", () => {
-  for (const k of Object.keys(load(THEME_KEY))) root.style.removeProperty(k);
-  save(THEME_KEY, {});
-  refreshColors();
+  const s = colorState();
+  delete s.overrides[s.theme];
+  save(COLORS_KEY, s);
+  applyTheme();
   buildEditPanel();
 });
 $("btn-reset-layout").addEventListener("click", () => { save(LAYOUT_KEY, {}); applyLayout(); });

@@ -13,6 +13,7 @@ TELEMETRY_VARS = (
     "PlayerCarIdx",
     "PlayerCarMyIncidentCount",
     "IsOnTrack",
+    "IsReplayPlaying",
     "OnPitRoad",
     "FuelLevel",
     "LapDeltaToSessionBestLap",

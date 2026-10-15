@@ -87,11 +87,14 @@
     </details>
     <details class="section">
       <summary>colors</summary>
+      <label class="row"><span>theme</span><select id="theme-select"></select></label>
+      <div class="sub">color-blind safe gain / loss</div>
       <div class="buttons" id="palette-buttons"></div>
+      <div class="sub">custom colors <span class="muted">(saved per theme)</span></div>
       <div id="theme-rows"></div>
       <div class="buttons">
+        <button id="btn-reset-theme" title="drop your changes to this theme">reset colors</button>
         <button id="btn-copy">copy css</button>
-        <button id="btn-reset-theme">reset colors</button>
       </div>
     </details>
     <p class="hint">Click a widget to select it, drag to move, mouse wheel to resize. Colors, positions and sizes save automatically. "copy css" → paste into frontend/theme.css to make them the defaults.</p>
