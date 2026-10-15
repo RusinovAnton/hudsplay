@@ -1053,6 +1053,79 @@ function syncSelectedPanel() {
   }
 }
 
+// Figma-style snapping while dragging: the widget's left / centre / right (top / middle /
+// bottom) snap to the same lines of other widgets and of the screen, with a guide line.
+// Hold Ctrl to place freely.
+const SNAP_PX = 6;
+const SNAP_SCREEN_PX = 10; // screen centre / edges: wider range and they win over widget lines
+
+function snapGuide(axis) {
+  let g = document.getElementById(`snap-${axis}`);
+  if (!g) {
+    g = document.createElement("div");
+    g.id = `snap-${axis}`;
+    g.className = `snap-guide ${axis}`;
+    document.body.appendChild(g);
+  }
+  return g;
+}
+
+function hideSnapGuides() {
+  for (const a of ["x", "y"]) snapGuide(a).style.display = "none";
+}
+
+// best snap on one axis: [shift px, guide position, target rect] or null.
+// Screen lines first (centre lines matter most), else the nearest widget line.
+function snapAxis(lines, targets, screen) {
+  let best = null, bestScreen = false;
+  for (const [pos, rect] of targets) {
+    const isScreen = rect === screen;
+    if (bestScreen && !isScreen) continue;
+    for (const l of lines) {
+      const d = pos - l;
+      if (Math.abs(d) > (isScreen ? SNAP_SCREEN_PX : SNAP_PX)) continue;
+      if (!best || (isScreen && !bestScreen) || Math.abs(d) < Math.abs(best[0])) {
+        best = [d, pos, rect];
+        bestScreen = isScreen;
+      }
+    }
+  }
+  return best;
+}
+
+function snapDrag(el, x, y, free) {
+  hideSnapGuides();
+  if (free) return [x, y];
+  const r = el.getBoundingClientRect();
+  const w = r.width, h = r.height;
+  const screen = { left: 0, top: 0, right: innerWidth, bottom: innerHeight, width: innerWidth, height: innerHeight };
+  const xs = [[0, screen], [innerWidth / 2, screen], [innerWidth, screen]];
+  const ys = [[0, screen], [innerHeight / 2, screen], [innerHeight, screen]];
+  for (const o of document.querySelectorAll(".widget")) {
+    if (o === el) continue;
+    const q = o.getBoundingClientRect();
+    if (!q.width || !q.height) continue; // not displayed
+    xs.push([q.left, q], [q.left + q.width / 2, q], [q.right, q]);
+    ys.push([q.top, q], [q.top + q.height / 2, q], [q.bottom, q]);
+  }
+  const sx = snapAxis([x, x + w / 2, x + w], xs, screen);
+  const sy = snapAxis([y, y + h / 2, y + h], ys, screen);
+  if (sx) x += sx[0];
+  if (sy) y += sy[0];
+  // guide spans both the dragged widget and the one it lines up with
+  if (sx) {
+    const g = snapGuide("x"), t = sx[2];
+    const top = Math.min(y, t.top), bottom = Math.max(y + h, t.bottom);
+    Object.assign(g.style, { display: "block", left: `${sx[1]}px`, top: `${top}px`, height: `${bottom - top}px` });
+  }
+  if (sy) {
+    const g = snapGuide("y"), t = sy[2];
+    const left = Math.min(x, t.left), right = Math.max(x + w, t.right);
+    Object.assign(g.style, { display: "block", top: `${sy[1]}px`, left: `${left}px`, width: `${right - left}px` });
+  }
+  return [x, y];
+}
+
 function enableDrag() {
   let drag = null;
   document.addEventListener("pointerdown", (e) => {
@@ -1067,11 +1140,13 @@ function enableDrag() {
   });
   document.addEventListener("pointermove", (e) => {
     if (!drag) return;
-    drag.el.style.left = `${((e.clientX - drag.dx) / innerWidth) * 100}%`;
-    drag.el.style.top = `${((e.clientY - drag.dy) / innerHeight) * 100}%`;
+    const [x, y] = snapDrag(drag.el, e.clientX - drag.dx, e.clientY - drag.dy, e.ctrlKey);
+    drag.el.style.left = `${(x / innerWidth) * 100}%`;
+    drag.el.style.top = `${(y / innerHeight) * 100}%`;
   });
   document.addEventListener("pointerup", () => {
     if (!drag) return;
+    hideSnapGuides();
     updateWidget(drag.el, {});
     drag = null;
   });

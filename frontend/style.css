@@ -295,8 +295,8 @@ body.edit #w-incident-alert.idle { opacity: var(--w-opacity, 1); }
 }
 #radar {
   display: block;
-  width: calc(15em);
-  height: calc(15em);
+  width: 11em;
+  height: 11em;
 }
 #w-radar.idle { opacity: 0; }
 /* delta widgets: hidden while there's nothing to show (no delta / no car there) */
@@ -368,6 +368,16 @@ body.edit .widget.off {
 body.edit .w-toggle { display: block; }
 .widget.off .w-toggle { color: var(--c-muted); border-color: var(--c-muted); }
 body.edit .widget.selected { outline: 2px solid var(--c-warn); }
+/* snap guides while dragging a widget (edit mode only, like Figma's) */
+.snap-guide {
+  display: none;
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  background: #ff3dbb;
+}
+.snap-guide.x { width: 1px; margin-left: -0.5px; }
+.snap-guide.y { height: 1px; margin-top: -0.5px; }
 #selected-rows button { margin-top: 4px; }
 
 #edit-panel {
