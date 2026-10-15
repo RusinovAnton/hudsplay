@@ -355,12 +355,11 @@ function buildDeltaWidgets() {
 }
 
 const PROX_RANGE_S = 2.0; // proximity bar: empty at this gap, full at 0
-const CATCH_MAX_LAPS = 10; // beyond this a "catching in N laps" number is noise
-const CLOSE_GAP_S = 0.5; // below this gap the cars are together: no catch estimate
-const HOLD_S_PER_LAP = 0.02; // gap change below this per lap reads as "holding"
+const CLOSE_GAP_S = 0.5; // below this gap the cars are together: "on their / your tail"
+const HOLD_S_PER_LAP = 0.05; // closing speed below this (s/lap, after rounding) reads as "holding"
 const STATUS_HOLD_MS = 1200; // new status must be stable this long before it shows
-const CATCH_SMOOTH_S = 5; // "catching in N laps": the estimate is smoothed this much...
-const STATUS_NUM_MS = 3000; // ...and a new whole-lap number must hold this long to show
+const CLOSING_SMOOTH_S = 5; // closing speed (s/lap) is smoothed this much...
+const STATUS_NUM_MS = 3000; // ...and a new 0.1 s/lap value must hold this long to show
 
 function renderRival(w, r, arrow) {
   const ahead = arrow === UP;
@@ -396,52 +395,41 @@ function renderRival(w, r, arrow) {
   w.fill.style.background = tint;
   w.fill.className = "fill prox";
 
-  // status line, calm on purpose: the catch estimate is smoothed (CATCH_SMOOTH_S), shown
-  // in whole laps, a new lap number must hold STATUS_NUM_MS and a new status
-  // STATUS_HOLD_MS before they show
+  // status line, calm on purpose, in spotter words: the closing speed in s/lap (gap
+  // shrinking or growing), smoothed (CLOSING_SMOOTH_S) and rounded to 0.1; a new value
+  // must hold STATUS_NUM_MS and a new status STATUS_HOLD_MS before they show
   const now = performance.now();
-  const st = (w.status ??= { car: null, kind: "", laps: null, pending: null, since: 0, smooth: null, t: now, nextLaps: null, lapsSince: 0 });
-  if (st.car !== r.num) Object.assign(st, { smooth: null }); // new car: start over
+  const st = (w.status ??= { car: null, kind: "", rate: null, pending: null, since: 0, smooth: null, t: now, nextRate: null, rateSince: 0 });
+  if (st.car !== r.num) st.smooth = null; // new car: start over
   const dt = Math.min((now - st.t) / 1000, 1);
   st.t = now;
-  st.smooth = r.catchLaps == null ? null
-    : st.smooth == null ? r.catchLaps : st.smooth + (r.catchLaps - st.smooth) * (1 - Math.exp(-dt / CATCH_SMOOTH_S));
-  let kind = "", laps = null;
-  if (gapAbs < CLOSE_GAP_S) {
-    kind = "close"; // already together: a catch estimate means nothing here
-  } else if (r.catchAfterFlag) {
-    kind = "flag"; // closing, but the race ends first
-  } else if (st.smooth != null && st.smooth < 1) {
-    kind = "soon";
-  } else if (st.smooth != null && st.smooth <= CATCH_MAX_LAPS) {
-    kind = "catch";
-    laps = Math.round(st.smooth);
-  } else if (st.smooth != null) {
-    kind = "slow"; // too far out to be a useful number
-  } else if (r.closing != null) {
-    kind = Math.abs(r.closing) < HOLD_S_PER_LAP ? "hold" : "away";
-  }
+  st.smooth = r.closing == null ? null
+    : st.smooth == null ? r.closing : st.smooth + (r.closing - st.smooth) * (1 - Math.exp(-dt / CLOSING_SMOOTH_S));
+  const rate = st.smooth == null ? null : Math.round(Math.abs(st.smooth) * 10) / 10; // s/lap
+  let kind = "";
+  if (gapAbs < CLOSE_GAP_S) kind = "close"; // already together
+  else if (r.catchAfterFlag) kind = "flag"; // closing, but the race ends first
+  else if (rate != null) kind = rate < HOLD_S_PER_LAP ? "hold" : st.smooth > 0 ? "closing" : "away";
+  const shown = kind === "closing" || kind === "away" ? rate : null;
   if (st.car !== r.num) {
-    Object.assign(st, { car: r.num, kind, laps, pending: null, nextLaps: null });
+    Object.assign(st, { car: r.num, kind, rate: shown, pending: null, nextRate: null });
   } else if (kind !== st.kind) {
     if (st.pending !== kind) { st.pending = kind; st.since = now; }
-    if (now - st.since >= STATUS_HOLD_MS) Object.assign(st, { kind, laps, pending: null, nextLaps: null });
+    if (now - st.since >= STATUS_HOLD_MS) Object.assign(st, { kind, rate: shown, pending: null, nextRate: null });
   } else {
     st.pending = null;
-    if (kind === "catch" && laps !== st.laps) {
-      if (st.nextLaps !== laps) { st.nextLaps = laps; st.lapsSince = now; }
-      if (now - st.lapsSince >= STATUS_NUM_MS) { st.laps = laps; st.nextLaps = null; }
-    } else st.nextLaps = null;
+    if (shown != null && shown !== st.rate) {
+      if (st.nextRate !== shown) { st.nextRate = shown; st.rateSince = now; }
+      if (now - st.rateSince >= STATUS_NUM_MS) { st.rate = shown; st.nextRate = null; }
+    } else st.nextRate = null;
   }
-  const n = st.laps === 1 ? "1 lap" : `${st.laps} laps`;
+  const v = st.rate == null ? "" : ` ${st.rate.toFixed(1)} s/lap`;
   const text = {
-    catch: ahead ? `catching in ${n}` : `catches you in ${n}`,
+    closing: ahead ? `closing${v}` : `closing on you${v}`,
+    away: `pulling away${v}`, // spotter wording, either way
     close: ahead ? "on their tail" : "on your tail",
-    soon: ahead ? "catching this lap" : "catches you this lap",
     flag: ahead ? "won't catch by the flag" : "safe to the flag",
-    slow: "closing slowly",
     hold: "holding",
-    away: "pulling away", // spotter wording, either way
   }[st.kind] || "";
   setText(w.catchEl, text, "");
 }

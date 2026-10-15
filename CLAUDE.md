@@ -20,11 +20,13 @@ Windows sim PC with real iRacing. See README.md for architecture and run command
 - Widgets fade out in replay (`IsReplayPlaying`) and while iRacing isn't the foreground
   window (`focus.py`, checked by the server); edit mode always shows them.
 - No pedal/input widget.
+- No flag widget: iRacing's own flags can't be hidden, so it would only duplicate them.
 - Arrows ▲/▼ instead of the words "ahead"/"behind" in the UI.
-- ▲/▼ widgets: gap + proximity bar + a calm status line in spotter words: "catching in
-  3 laps" (estimate smoothed ~5 s, whole laps, a new number holds 3 s), "on their tail" /
-  "on your tail" (< 0.5 s), "pulling away" (either side), "holding". Owner: the number
-  must not flicker; "in range" read as ambiguous, "dropping back" isn't spotter talk.
+- ▲/▼ widgets: gap + proximity bar + a calm status line in spotter words: "closing
+  0.3 s/lap" / "closing on you 0.3 s/lap" / "pulling away 0.2 s/lap" (closing speed
+  smoothed ~5 s, 0.1 s steps, a new value holds 3 s), "on their tail" / "on your tail"
+  (< 0.5 s), "holding". Owner: no "catching in N laps" (lap counts jumped around and
+  weren't useful); "in range" read as ambiguous, "dropping back" isn't spotter talk.
   Ahead "+", behind "-". Color is ALWAYS the global ahead/behind color; gaining vs
   losing only changes saturation (full color = gaining, washed to --c-fg gray = losing).
   Relative widget still uses iRacing's convention: ahead "-", behind "+".

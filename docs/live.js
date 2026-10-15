@@ -75,20 +75,23 @@ function gainLossColor(k) {
 // ---------------------------------------------------------------- the fake race
 
 const DRIVERS = [
-  // pos, number, name, country, iRating, license, SR, class (GT3 / GT4), best lap
-  [1, 12, "L. Hartmann", "de", 4120, "A", 3.6, "GT3", 106.412],
-  [5, 88, "S. Marchetti", "it", 2870, "B", 2.4, "GT3", 106.902],
-  [6, 21, "J. O'Neill", "ie", 1980, "C", 3.1, "GT3", 107.344],
-  [2, 41, "R. Costa", "br", 2240, "B", 1.7, "GT4", 112.758],
-  [7, 42, "Y. Driver", "ua", 2410, "A", 2.9, "GT3", 106.519],
-  [8, 55, "M. Ruiz", "es", 1730, "D", 1.2, "GT3", 107.272],
-  [9, 19, "L. Nowak", "pl", 3910, "A", 3.8, "GT3", 106.436],
-  [10, 3, "E. Laurent", "fr", 1310, "R", 0.6, "GT3", 107.805],
+  // an IMSA field: pos (in class), number, name, country, iRating, license, SR, class, best lap
+  [1, 12, "L. Hartmann", "de", 4120, "A", 3.6, "GTD", 107.412],
+  [2, 7, "S. Marchetti", "it", 4870, "A", 3.9, "GTP", 96.402],
+  [4, 33, "J. O'Neill", "ie", 3280, "B", 2.6, "LMP2", 100.344],
+  [6, 21, "R. Costa", "br", 2240, "B", 1.7, "GTD", 107.758],
+  [7, 42, "Y. Driver", "ua", 2410, "A", 2.9, "GTD", 107.519],
+  [8, 55, "M. Ruiz", "es", 1730, "D", 1.2, "GTD", 107.272],
+  [3, 19, "L. Nowak", "pl", 3910, "A", 3.8, "LMP2", 100.436],
+  [5, 3, "E. Laurent", "fr", 1310, "R", 0.6, "GTP", 97.805],
 ];
 const ME = 42;
-const CLASS_COLORS = { GT3: "#ffda59", GT4: "#53ff77" };
-// relative gap base (iRacing convention: ahead "-") and lap offset per car
-const REL = { 12: [-41.2, 0], 88: [-4.7, 0], 21: [-2.3, 0], 41: [-1.05, -1], 42: [0, 0], 55: [0.42, 0], 19: [1.9, 0], 3: [3.4, 0] };
+const AHEAD = 21, BEHIND = 55; // the ▲ / ▼ rivals: nearest cars on track
+// iRacing-style class colors; GTD purple so it can't be read as gain / loss red or green
+const CLASS_COLORS = { GTP: "#ffda59", LMP2: "#33ceff", GTD: "#b07cff" };
+const CLASS_BEST = new Set([7, 33, 55]); // fastest lap in each class
+// relative gap base (iRacing convention: ahead "-") and laps up (+) / down (-) on me
+const REL = { 12: [-41.2, 0], 7: [-4.7, 1], 33: [-2.3, 0], 21: [-1.05, 0], 42: [0, 0], 55: [0.42, 0], 19: [1.9, 0], 3: [3.4, 0] };
 const RADIO_ICON =
   '<svg class="radio" viewBox="0 0 16 16" aria-hidden="true">' +
   '<rect x="6" y="2" width="4" height="7" rx="2" fill="currentColor"/>' +
@@ -139,8 +142,8 @@ const TEMPLATES = {
   "incident-alert": () => `<div class="widget" id="w-incident-alert" data-id="incident-alert">
     <svg class="alert-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.0 0.9 9.1 5.4 12.0 3.6 10.7 6.8 15.5 7.0 11.1 8.8 13.2 11.3 10.0 10.7 10.5 15.1 8.0 11.4 5.7 14.5 6.0 10.7 1.4 12.1 4.9 8.8 2.2 7.3 5.3 6.8 3.5 2.9 6.9 5.4Z" fill="currentColor" stroke="currentColor" stroke-width="0.6" stroke-linejoin="round"/></svg><span>contact</span> <span id="ia-x">4x</span></div>`,
   "delta-best": () => deltaTemplate("best", "// Δ session best"),
-  "delta-ahead": () => deltaTemplate("ahead", rivalTitle("▲", 6, 21, "J. O'Neill", "GT3")),
-  "delta-behind": () => deltaTemplate("behind", rivalTitle("▼", 8, 55, "M. Ruiz", "GT3")),
+  "delta-ahead": () => deltaTemplate("ahead", rivalTitle("▲", 6, 21, "R. Costa", "GTD")),
+  "delta-behind": () => deltaTemplate("behind", rivalTitle("▼", 8, 55, "M. Ruiz", "GTD")),
   map: () => `<div class="widget" id="w-map" data-id="map"><div class="title">// map</div><canvas id="map"></canvas></div>`,
   radar: () => `<div class="widget" id="w-radar" data-id="radar"><canvas id="radar"></canvas></div>`,
 };
@@ -160,9 +163,9 @@ function relativeRows(box) {
   for (const d of DRIVERS) {
     const [pos, num, name, cc, ir, lic, sr, cls] = d;
     const row = document.createElement("div");
-    row.className = "srow" + (num === ME ? " me" : "") + (num === 12 ? " leader" : "") + (REL[num][1] < 0 ? " lap-down" : "");
+    row.className = "srow" + (num === ME ? " me" : "") + (num === 12 ? " leader" : "") + (REL[num][1] < 0 ? " lap-down" : REL[num][1] > 0 ? " lap-up" : "");
     const lap = REL[num][1];
-    const tag = lap ? `<span class="tag lap-down">${lap}L</span>`
+    const tag = lap ? `<span class="tag ${lap > 0 ? "lap-up" : "lap-down"}">${lap > 0 ? "+" : ""}${lap}L</span>`
       : `<span class="tag cls" style="color:${CLASS_COLORS[cls]}">${cls[0]}</span>`;
     row.innerHTML =
       `<span class="pos class-color" style="--badge:${CLASS_COLORS[cls]}">P${pos}</span>` +
@@ -171,8 +174,8 @@ function relativeRows(box) {
       `<img class="flag on" alt="" src="https://flagcdn.com/w40/${cc}.png">` +
       `<span class="name">${name}</span>${RADIO_ICON}${tag}` +
       // two cars gambled on wets
-      (num === 41 || num === 3 ? '<span class="tire on wet" title="wet">W</span>' : '<span class="tire on hard" title="hard">H</span>') +
-      `<span class="best${num === 12 ? " class-best" : ""}">${fmtLap(d[8])}</span><span class="gap"></span>`;
+      (num === 33 || num === 3 ? '<span class="tire on wet" title="wet">W</span>' : '<span class="tire on hard" title="hard">H</span>') +
+      `<span class="best${CLASS_BEST.has(num) ? " class-best" : ""}">${fmtLap(d[8])}</span><span class="gap"></span>`;
     row.dataset.num = num;
     box.appendChild(row);
   }
@@ -187,7 +190,8 @@ function mount(el) {
   el.innerHTML = TEMPLATES[kind]();
   const w = el.firstElementChild;
   const f = (name) => w.querySelector(`[data-f="${name}"]`);
-  const inst = { kind, el: w, f };
+  // visible until the observer says otherwise (it may report late or not at all)
+  const inst = { kind, el: w, f, visible: true };
   if (kind === "relative") relativeRows(f("rows"));
   if (kind.startsWith("delta-")) Object.assign(inst, { v: w.querySelector(".v"), fill: w.querySelector(".fill"), catchEl: w.querySelector(".catch") });
   if (kind === "map" || kind === "radar") inst.canvas = w.querySelector("canvas");
@@ -212,12 +216,12 @@ function updateText(inst, t, r) {
     for (const row of inst.el.querySelectorAll(".srow")) {
       const num = +row.dataset.num;
       const base = REL[num][0];
-      const gap = num === ME ? null : base + (num === 21 ? r.ahead - 2.3 : num === 55 ? r.behind - 0.42 : 0.08 * wobble(t, num));
+      const gap = num === ME ? null : num === AHEAD ? -r.ahead : num === BEHIND ? r.behind : base + 0.08 * wobble(t, num);
       const g = row.querySelector(".gap");
       setText(g, gap == null ? "" : fmtSigned(gap));
       g.className = "gap" + (gap == null ? "" : gap < 0 ? " ahead" : " behind");
       // someone keys the radio now and then
-      row.classList.toggle("talking", num === (Math.floor(t / 9) % 2 ? 55 : 88) && t % 9 < 4);
+      row.classList.toggle("talking", num === (Math.floor(t / 9) % 2 ? 55 : 7) && t % 9 < 4);
     }
   } else if (kind === "fuel") {
     const level = 51.4 - ((t * 2.71) / LAP_S) % 30;
@@ -252,15 +256,17 @@ function updateText(inst, t, r) {
     inst.v.style.color = tint;
     Object.assign(inst.fill.style, { left: "0", width: `${step(clamp(1 - gap / 2, 0, 1) * 100, 0.5)}%`, background: tint });
     inst.fill.className = "fill prox";
-    const closing = ahead ? -r.aheadRate * LAP_S : -r.behindRate * LAP_S; // s/lap
+    // closing speed in s/lap like the overlay (the demo's gaps swing fast, so scaled to
+    // believable values); a new 0.1 s value shows at most every 3 s
+    const closing = (ahead ? -r.aheadRate : -r.behindRate) * 8;
+    const now = performance.now();
+    if (inst.rate == null || now - (inst.rateAt || 0) > 3000) { inst.rate = closing; inst.rateAt = now; }
+    const v = `${Math.abs(inst.rate).toFixed(1)} s/lap`;
     let text;
     if (gap < 0.5) text = ahead ? "on their tail" : "on your tail";
-    else if (Math.abs(closing) < 0.6) text = "holding";
-    else if (closing > 0) {
-      const laps = gap / closing;
-      text = laps < 1 ? (ahead ? "catching this lap" : "catches you this lap")
-        : `${ahead ? "catching in" : "catches you in"} ${Math.round(laps) === 1 ? "1 lap" : `${Math.round(laps)} laps`}`;
-    } else text = "pulling away";
+    else if (Math.abs(inst.rate) < 0.05) text = "holding";
+    else if (inst.rate > 0) text = ahead ? `closing ${v}` : `closing on you ${v}`;
+    else text = `pulling away ${v}`;
     setText(inst.catchEl, text);
   }
 }
@@ -349,10 +355,10 @@ const mapLayer = { gen: 0 };
 const PAINT = Array.from({ length: 580 }, (_, i) => clamp(Math.sin(i / 26) * 0.8 + Math.sin(i / 8.5 + 1) * 0.35, -1, 1));
 // [lap %, speed laps/s, class, lap offset]
 const MAP_CARS = [
-  [0.02, 1 / 106.4, "GT3", 0], [0.09, 1 / 106.9, "GT3", 0], [0.1, 1 / 107.3, "GT3", 0],
-  [0.12, 1 / 112.8, "GT4", -1], [0.14, 1 / 107.2, "GT3", 0], [0.17, 1 / 106.4, "GT3", 0],
-  [0.47, 1 / 107.8, "GT3", 0], [0.63, 1 / 113.2, "GT4", 0],
-];
+  [0.02, 1 / 107.4, "GTD", 0], [0.09, 1 / 96.4, "GTP", 1], [0.1, 1 / 100.3, "LMP2", 0],
+  [0.12, 1 / 107.8, "GTD", 0], [0.14, 1 / 107.3, "GTD", 0], [0.17, 1 / 100.4, "LMP2", 0],
+  [0.19, 1 / 97.8, "GTP", 0], [0.47, 1 / 108.9, "GTD", -1], [0.63, 1 / 96.9, "GTP", 0],
+]
 const ME_START = 0.13;
 
 let bbox = null;
